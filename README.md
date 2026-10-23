@@ -13,6 +13,10 @@ En NES-version av Bomb Yard. Du är Bit och ska spränga de två Kraxarna i tre 
 | Start | Börja, pausa och fortsätt |
 | Select (på titelskärmen) | Slå på eller av debugläget, där du går genom väggar |
 
+## Webbversionen
+
+`web/bomb-yard.html` är originalspelet för webbläsaren, som hela spelet i en enda fil. Öppna den i en webbläsare på dator eller mobil. Den har mer än NES-versionen: tvåspelarläge på samma telefon med knappar för båda, en större bana på 16×16 rutor och knappar på skärmen för mobilen.
+
 ## Bygga
 
 Du behöver [cc65](https://cc65.github.io) och Python 3.
