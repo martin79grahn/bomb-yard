@@ -61,7 +61,7 @@ static u8 vlen;
 #define MAX_BOMBS   7
 #define MAX_FLAMES  80
 #define MAX_SPEEDUPS 4
-#define ROUND_SECS  60
+#define ROUND_SECS  180         /* three minutes per level */
 #define STRESS_SECS 20
 
 /* RAM is tight (2 KB), so each cell packs several fields into one byte:

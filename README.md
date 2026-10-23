@@ -1,6 +1,6 @@
 # Bomb Yard för NES
 
-En NES-version av Bomb Yard. Du är Bit och ska spränga de två Kraxarna i tre levels: The Yard, Sand Pit och Frost Cave. Varje level har en minut på klockan.
+En NES-version av Bomb Yard. Du är Bit och ska spränga de två Kraxarna i tre levels: The Yard, Sand Pit och Frost Cave. Varje level har tre minuter på klockan.
 
 ## Spela
 
