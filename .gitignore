@@ -1,0 +1,4 @@
+# build output
+*.o
+main.s
+map.txt
