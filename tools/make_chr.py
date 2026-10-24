@@ -3,7 +3,7 @@
 
 Pattern table 0 ($0000) holds background tiles:
   0        HUD/blank tile (all colour 3)
-  1..40    font (see FONT below), white on colour 3
+  1..41    font (see FONT below), white on colour 3
   $40-$7F  the cart's map tiles, sprite-sheet rows 4-7, at the same index as in PICO-8
 Pattern table 1 ($1000) holds sprites:
   $00-$2F  the bomber frames (sheet rows 0-2)
@@ -97,8 +97,9 @@ FONT = {
  '!': ["  #  ","  #  ","  #  ","  #  ","  #  ","     ","  #  "],
  '-': ["     ","     ","     "," ### ","     ","     ","     "],
  '.': ["     ","     ","     ","     ","     "," ##  "," ##  "],
+ '>': [" #   ","  #  ","   # ","    #","   # ","  #  "," #   "],
 }
-FONT_ORDER = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:!-."
+FONT_ORDER = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:!-.>"
 
 
 def font_tile(rows):

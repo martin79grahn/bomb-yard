@@ -258,8 +258,10 @@ function tone(freqs, dur, type = "square", vol = 0.08){
   g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + dur);
 }
+let boomUntil = 0;
 function boom(){
   const a = audio(); if (!a || muted) return;
+  boomUntil = a.currentTime + 0.6;
   const len = a.sampleRate * 0.45, buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = (Math.random()*2 - 1) * Math.pow(1 - i/len, 2);
   const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
@@ -276,44 +278,127 @@ const SFX = {
 let boomedThisFrame = false;
 
 // ---------- background music ----------
-// An original little chiptune loop: square-wave lead over a triangle bass, 16th-note grid.
-// It plays during a game, stops on pause or in the menu, respects the mute button,
-// and goes up in key and tempo with each level.
-const LEAD = [69,0,72,0,76,0,74,72, 69,0,67,0,69,0,0,0, 72,0,76,0,79,0,77,76, 74,0,72,0,74,0,0,0,
-              69,0,72,0,76,0,79,0, 81,0,79,76,74,0,72,0, 74,0,72,0,69,0,67,0, 69,0,0,0,0,0,0,0];
-const BASS = [45,52,41,48,43,50,45,52, 45,52,41,48,43,50,45,45];   // one note per 8th (2 steps)
-let musicStep = 0, musicNext = 0;
+// One song per arena, the same notes as the NES version. Each is a 64-step loop on a
+// 16th-note grid. LEAD and TRI: a MIDI note starts a note, 0 lets the last one ring,
+// 1 cuts it; TRI notes + L are held, the rest are short hits. DRUM is a 16-step loop.
+//   The Yard:   marimba calls over jungle bongos that bend down in pitch, shaker and low drum
+//   Sand Pit:   a reedy tune in D hijaz with vibrato, a D drone and a maqsum drum pattern
+//   Frost Cave: slow bells in E minor answered by echoes, long bass notes, a breath of wind
+const L = 0x80, DUM = 1, TEK = 2, SHK = 3, WND = 4;
+const SONGS = [
+  { rate: 7, duty: 0.25, vol: 11, decay: 1, floor: 0, triShort: 16, bend: 7, vibrato: false, echo: false,
+    lead: [81,0,0,79, 0,76,0,0, 79,0,76,0, 74,0,0,0,   76,0,0,74, 0,72,0,0, 74,0,72,0, 69,0,0,0,
+           69,0,72,0, 74,0,76,0, 79,0,0,76, 0,79,81,0, 84,0,0,81, 0,79,0,76, 79,0,76,0, 74,72,69,0],
+    tri:  [45,0,67,67, 60,0,67,0, 45,0,67,60, 67,60,60,0,  45,0,67,67, 60,0,67,0, 45,67,60,67, 60,67,60,60,
+           45,0,67,67, 60,0,67,0, 45,0,67,60, 67,60,60,0,  45,67,67,60, 60,67,60,67, 72,72,67,67, 60,60,45,45],
+    drum: [DUM,SHK,SHK,SHK, TEK,SHK,DUM,SHK, DUM,SHK,SHK,DUM, TEK,SHK,SHK,SHK] },
+  { rate: 8, duty: 0.125, vol: 9, decay: 5, floor: 4, triShort: 24, bend: 0, vibrato: true, echo: false,
+    lead: [74,0,0,75, 74,0,72,0, 70,0,72,0, 69,0,0,0,  66,0,67,0, 69,0,70,69, 67,0,66,0, 63,0,62,0,
+           62,0,66,0, 67,0,69,0, 70,0,69,70, 72,0,70,69, 67,69,67,66, 63,0,66,0, 62,0,0,0, 0,0,1,0],
+    tri:  [38+L,0,0,0, 0,0,38+L,0, 0,0,38+L,0, 0,0,0,0,  39+L,0,0,0, 0,0,39+L,0, 0,0,38+L,0, 0,0,0,0,
+           38+L,0,0,0, 0,0,38+L,0, 0,0,38+L,0, 0,0,0,0,  43+L,0,0,0, 0,0,39+L,0, 0,0,38+L,0, 0,0,38+L,0],
+    drum: [DUM,0,TEK,0, SHK,0,TEK,0, DUM,0,SHK,0, TEK,0,SHK,0] },
+  { rate: 11, duty: 0.5, vol: 7, decay: 6, floor: 0, triShort: 24, bend: 0, vibrato: false, echo: true,
+    lead: [76,0,0,0, 83,0,0,0, 81,0,0,0, 0,0,0,0,      79,0,0,0, 78,0,0,0, 74,0,0,0, 0,0,0,0,
+           76,0,0,0, 83,0,0,0, 88,0,0,0, 86,0,0,0,     83,0,0,0, 81,0,79,0, 78,0,0,0, 0,0,0,0],
+    tri:  [40+L,0,0,0, 0,0,0,0, 47+L,0,0,0, 0,0,0,0,  36+L,0,0,0, 0,0,0,0, 43+L,0,0,0, 0,0,0,0,
+           40+L,0,0,0, 0,0,0,0, 47+L,0,0,0, 0,0,0,0,  38+L,0,0,0, 0,0,0,0, 45+L,0,0,0, 0,0,0,0],
+    drum: [WND,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0] },
+];
+// drum kit: how each noise hit is filtered, its starting volume (0-15) and frames per volume step
+const KIT = { [DUM]: { type: "lowpass", f: 380, q: 1, vol: 12, dec: 1 }, [TEK]: { type: "bandpass", f: 2600, q: 1.2, vol: 9, dec: 1 },
+              [SHK]: { type: "highpass", f: 6500, q: 0.7, vol: 3, dec: 1 }, [WND]: { type: "bandpass", f: 1400, q: 0.6, vol: 3, dec: 16 } };
+const FPS = 60.0988, CPU_HZ = 1789773;
+let musicStep = 0, musicNext = 0, musicArena = -1, leadV = null, triV = null, noiseBuf = null, lfo = null;
+const pulseWaves = {};
 function midiHz(n){ return 440 * Math.pow(2, (n - 69) / 12); }
-function note(a, n, t, dur, type, vol){
-  const o = a.createOscillator(), g = a.createGain();
-  o.type = type; o.frequency.value = midiHz(n);
-  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
+function pulseWave(a, duty){
+  if (!pulseWaves[duty]) {   // Fourier series of a pulse wave with the NES duty cycle
+    const n = 48, re = new Float32Array(n), im = new Float32Array(n);
+    for (let k = 1; k < n; k++) im[k] = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * duty);
+    pulseWaves[duty] = a.createPeriodicWave(re, im);
+  }
+  return pulseWaves[duty];
+}
+function cutVoice(v, t){
+  if (!v) return;
+  try { v.g.gain.cancelScheduledValues(t); v.g.gain.setTargetAtTime(0, t, 0.008); v.o.stop(t + 0.08); } catch (e) {}
+}
+function stopMusicVoices(){ if (ac) { cutVoice(leadV, ac.currentTime); cutVoice(triV, ac.currentTime); } leadV = triV = null; }
+function playLead(a, song, n, vol, t){
+  cutVoice(leadV, t);
+  const o = a.createOscillator(), g = a.createGain(), amp = v => v / 15 * 0.07;
+  o.setPeriodicWave(pulseWave(a, song.duty)); o.frequency.value = midiHz(n);
+  // NES-style volume fade: one step down every `decay` frames, down to `floor`
+  g.gain.setValueAtTime(amp(vol), t);
+  g.gain.linearRampToValueAtTime(amp(Math.min(vol, song.floor)) + 0.0001, t + Math.max(0, vol - song.floor) * song.decay / FPS);
+  if (song.vibrato) {
+    if (!lfo) { lfo = a.createOscillator(); lfo.frequency.value = 3.75; lfo.start(); }
+    const depth = a.createGain(); depth.gain.setValueAtTime(0, t); depth.gain.setValueAtTime(16, t + 10 / FPS);
+    lfo.connect(depth).connect(o.detune);
+  }
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + 8);
+  leadV = { o, g };
+}
+function playTri(a, song, raw, shift, t, stepDur){
+  cutVoice(triV, t);
+  const n = (raw & 0x7F) + shift, held = raw & L;
+  const o = a.createOscillator(), g = a.createGain(), f0 = midiHz(n);
+  o.type = "triangle"; o.frequency.setValueAtTime(f0, t);
+  o.connect(g).connect(a.destination); o.start(t);
+  g.gain.setValueAtTime(0.09, t);
+  if (held) { o.stop(t + 8); }
+  else {
+    const len = song.triShort / 240;
+    if (song.bend) {   // bongo: the period grows each frame, so the pitch drops
+      const per = CPU_HZ / (32 * f0) - 1;
+      o.frequency.linearRampToValueAtTime(CPU_HZ / (32 * (per + song.bend * 6 + 1)), t + 6 / FPS);
+    }
+    g.gain.setValueAtTime(0.09, t + len); g.gain.linearRampToValueAtTime(0, t + len + 0.01);
+    o.stop(t + len + 0.03);
+  }
+  triV = held ? { o, g } : null;
+}
+function playDrum(a, code, t){
+  const k = KIT[code];
+  if (!noiseBuf) { noiseBuf = a.createBuffer(1, a.sampleRate, a.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), len = k.vol * k.dec / FPS;
+  s.buffer = noiseBuf; s.loop = true; f.type = k.type; f.frequency.value = k.f; f.Q.value = k.q;
+  g.gain.setValueAtTime(k.vol / 15 * 0.22, t); g.gain.linearRampToValueAtTime(0, t + len);
+  s.connect(f).connect(g).connect(a.destination); s.start(t, Math.random() * 0.5); s.stop(t + len + 0.02);
 }
 setInterval(() => {
   if (!ac || ac.state !== "running") return;
   const playing = !muted && (phase === "play" || phase === "roundover") && mode;
-  if (!playing) { musicNext = 0; return; }
-  const lv = mode === "cpu" ? level : 1;
+  if (!playing) { if (musicNext) stopMusicVoices(); musicNext = 0; return; }
+  const ai = arena();
+  if (ai !== musicArena) { stopMusicVoices(); musicArena = ai; musicStep = 0; musicNext = 0; }
+  const song = SONGS[ai];
   const stress = G && G.time <= STRESS_TIME && phase === "play";
-  const shift = [0, 2, 5][lv - 1] + (stress ? 1 : 0);
-  const step = 60 / ((132 + (lv - 1) * 12) * (stress ? 1.4 : 1)) / 4;
+  const shift = stress ? 1 : 0;                                  // a step higher and faster when time is short
+  const stepDur = (song.rate - (stress ? 2 : 0)) / FPS;
   if (musicNext < ac.currentTime) musicNext = ac.currentTime + 0.05;
-  while (musicNext < ac.currentTime + 0.25) {
-    const l = LEAD[musicStep % LEAD.length];
-    if (l) note(ac, l + shift, musicNext, step * 1.8, "square", 0.025);
-    if (musicStep % 2 === 0) note(ac, BASS[(musicStep / 2) % BASS.length] + shift, musicNext, step * 1.9, "triangle", 0.06);
-    else if (stress) note(ac, BASS[((musicStep - 1) / 2) % BASS.length] + shift + 12, musicNext, step * 0.9, "triangle", 0.05);   // driving off-beat bass
-    if (stress && musicStep % 4 === 0) note(ac, 96, musicNext, 0.03, "square", 0.02);                                         // clock tick on every beat
-    musicStep++; musicNext += step;
+  while (musicNext < ac.currentTime + 0.2) {
+    const s = musicStep & 63, t = musicNext;
+    const l = song.lead[s];
+    if (l === 1) { cutVoice(leadV, t); leadV = null; }
+    else if (l) playLead(ac, song, l + shift, song.vol, t);
+    else if (song.echo && song.lead[(s + 62) & 63] > 1) playLead(ac, song, song.lead[(s + 62) & 63] + shift, 3, t);
+    const tr = song.tri[s];
+    if (tr === 1) { cutVoice(triV, t); triV = null; }
+    else if (tr) playTri(ac, song, tr, shift, t, stepDur);
+    const d = song.drum[s & 15];
+    if (d && boomUntil < t) playDrum(ac, d, t);   // drums rest while a bomb goes off
+    musicStep++; musicNext += stepDur;
   }
-}, 50);
+}, 25);
 
 // ---------- game state ----------
 let G = null;            // current round
 let mode = null;         // "cpu" | "2p"
 let wins = [0, 0];
 let level = 1;           // 1-player level, 1..LEVELS.length
+let roundNo = 0;         // 2-player rounds played; the arena changes every round
 let debug = false;       // debug mode: player 1 walks through walls
 let carry = null;        // player 1's power-ups, kept from level to level
 let phase = "menu";      // menu | play | roundover | matchover | paused
@@ -348,6 +433,9 @@ function randomMap(){
   }
   return tiles;
 }
+
+// which arena (0..2) is in play: the level in 1-player mode, the next in line in 2-player mode
+function arena(){ return mode === "2p" ? roundNo % LEVELS.length : level - 1; }
 
 function newRound(){
   G = { tiles: randomMap(), bombs: [], flames: [], pickups: [], t: 0 };
@@ -543,9 +631,9 @@ function endRound(winner){
     showOverlay(mode === "cpu" ? (winner.id === 0 ? "You win the match" : "The monsters win") : `${playerName(winner.id)} wins the match`, `${wins[0]}–${wins[1]}. Press Enter or Space for a rematch.`, "rematch");
   } else {
     phase = "roundover";
-    sub = `Score ${wins[0]}–${wins[1]}. Next round starts in a moment.`;
+    sub = mode === "2p" ? `Score ${wins[0]}–${wins[1]}. Next round: ${LEVELS[(roundNo + 1) % LEVELS.length].name}.` : `Score ${wins[0]}–${wins[1]}. Next round starts in a moment.`;
     showOverlay(title, sub, null);
-    setTimeout(() => { if (phase === "roundover") { newRound(); hideOverlay(); phase = "play"; } }, 1800);
+    setTimeout(() => { if (phase === "roundover") { if (mode === "2p") roundNo++; newRound(); hideOverlay(); phase = "play"; } }, 1800);
   }
   renderHud();
 }
@@ -731,7 +819,7 @@ function togglePause(){
 
 function start(m, dbg = false){
   audio();
-  mode = m; debug = m === "cpu" && dbg; level = 1; carry = null; wins = [0, 0]; order[0].length = 0; order[1].length = 0;
+  mode = m; debug = m === "cpu" && dbg; level = 1; roundNo = 0; carry = null; wins = [0, 0]; order[0].length = 0; order[1].length = 0;
   document.body.classList.toggle("two", m === "2p");
   newRound(); hideOverlay(); phase = "play";
   statusEl.textContent = debug ? "Debug: you walk through walls · P or Esc pauses" : m === "cpu" ? "1P vs monsters · P or Esc pauses · M mutes" : "2 players · P or Esc pauses · M mutes";
@@ -744,9 +832,9 @@ function iconCanvas(n, sheet = SHEET){
 }
 function renderHud(){
   const lvl = document.getElementById("lvl");
-  lvl.hidden = mode !== "cpu";
+  lvl.hidden = !mode;
   lvl.classList.toggle("debug", debug);
-  lvl.textContent = debug ? `DEBUG · LEVEL ${level}/${LEVELS.length}` : `LEVEL ${level}/${LEVELS.length}`;
+  lvl.textContent = mode === "2p" ? LEVELS[arena()].name.toUpperCase() : debug ? `DEBUG · LEVEL ${level}/${LEVELS.length}` : `LEVEL ${level}/${LEVELS.length}`;
   for (const id of [0, 1]) {
     const p = (G && G.players[id]) || makePlayer(id, 0, 0, false);
     const monsters = id === 1 && mode !== "2p";
@@ -783,7 +871,7 @@ function renderKeys(){
 // ---------- draw ----------
 function draw(){
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, N*16, N*16);
-  const tiles = mode === "cpu" ? LEVEL_SHEETS[level - 1] : SHEET;
+  const tiles = LEVEL_SHEETS[arena()];
   for (let ty = 0; ty < N*2; ty++) for (let tx = 0; tx < N*2; tx++) spr(tiles, G.tiles[ty][tx], tx*8, ty*8);
   for (const pk of G.pickups) spr(SHEET, PICKUP_SPR[pk.type], pk.cx*16, pk.cy*16, 2, 2);
   for (const b of G.bombs) {
@@ -832,14 +920,14 @@ function frame(now){
 }
 
 function boot(data){
-  mode = data.mode || null; wins = data.wins || [0, 0];
+  mode = data.mode || null; wins = data.wins || [0, 0]; roundNo = data.roundNo || 0; level = data.level || 1;
   if (!mode) { mode = "cpu"; newRound(); mode = null; } else newRound();
   renderKeys(); renderHud();
   if (data.mode) { mode = data.mode; document.body.classList.toggle("two", mode === "2p"); phase = "paused"; showOverlay("Paused", "Press P or Esc to keep playing.", null); }
   requestAnimationFrame(frame);
 }
 document.querySelectorAll("button").forEach(b => b.addEventListener("click", () => b.blur()));
-window.claude?.hot?.snapshot?.(() => ({ mode, wins }));
+window.claude?.hot?.snapshot?.(() => ({ mode, wins, roundNo, level }));
 window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
 </script>
 
