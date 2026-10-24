@@ -4,7 +4,7 @@ En NES-version av Bomb Yard med två lägen:
 
 - **1 spelare:** du är Bit och ska spränga de två Kraxarna i tre levels, The Yard, Sand Pit och Frost Cave. Varje level har tre minuter på klockan. Innan spelet väljer du hur många liv du har, 3, 5 eller 10. Varje gång du dör förlorar du ett liv och försöker banan igen, och när liven är slut är det game over.
 
-  Mellan level 1 och level 2 kommer en **bossbana**. Bossen är en lila bombare som kan lägga 2 bomber åt gången med sprängräckvidd 5, och den behöver 3 träffar för att dö. Efter 2 träffar blir den rödare och lite snabbare och kan lägga 3 bomber åt gången. Den blinkar en stund efter varje träff och kan inte skadas då. Att nudda bossen är ofarligt, det är bomberna du ska akta dig för.
+  Mellan level 1 och level 2 kommer en **bossbana**. Bossen är en lila bombare som kan lägga 2 bomber åt gången med sprängräckvidd 5, och den behöver 3 träffar för att dö. Efter 2 träffar blir den rödare och lite snabbare och kan lägga 3 bomber åt gången. Den blinkar en stund efter varje träff och kan inte skadas då. Att nudda bossen är ofarligt, det är bomberna du ska akta dig för. Bossen skadas inte av sina egna bomber, bara av dina.
 - **2 spelare:** spräng varandra på en slumpad bana. Spelare 2 (röd) använder handkontroll 2. Tar tiden slut blir rundan oavgjord. Innan matchen väljer du på en inställningsskärm:
   - **Level:** The Yard, Sand Pit eller Frost Cave.
   - **Monsters:** på eller av. När de är på går två Kraxar runt på banan, och den som nuddar en är ute.

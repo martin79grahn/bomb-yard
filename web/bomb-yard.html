@@ -597,9 +597,11 @@ function placeBomb(p){
   p.active++; SFX.place(); return true;
 }
 
-function addFlame(cx, cy){
-  const f = flameAt(cx, cy);
-  if (f) f.t = FLAME_TIME; else G.flames.push({ cx, cy, t: FLAME_TIME });
+// bossOnly: the cell burns only with the boss's own fire, which can't hurt it
+function addFlame(cx, cy, owner){
+  const f = flameAt(cx, cy), mine = !!(owner && owner.boss);
+  if (f) { f.t = FLAME_TIME; f.bossOnly = f.bossOnly && mine; }
+  else G.flames.push({ cx, cy, t: FLAME_TIME, bossOnly: mine });
   const pk = pickupAt(cx, cy);
   if (pk && !pk.fresh) G.pickups.splice(G.pickups.indexOf(pk), 1);
 }
@@ -609,7 +611,7 @@ function explode(b){
   G.bombs.splice(i, 1); b.owner.active = Math.max(0, b.owner.active - 1);
   if (!boomedThisFrame) { boom(); boomedThisFrame = true; }
   fxBoom(b.cx, b.cy);
-  addFlame(b.cx, b.cy);
+  addFlame(b.cx, b.cy, b.owner);
   for (const [dx, dy] of Object.values(DIRS)) {
     for (let n = 1; n <= b.range; n++) {
       const cx = b.cx + dx*n, cy = b.cy + dy*n, t = cellType(cx, cy);
@@ -618,10 +620,10 @@ function explode(b){
         setCellTiles(cx, cy, GRASS); fxBreak(cx, cy);
         const type = G.hidden.get(cx + cy*N);
         if (type) G.pickups.push({ cx, cy, type, fresh: true });
-        addFlame(cx, cy);
+        addFlame(cx, cy, b.owner);
         break;                                 // stone stops the blast
       }
-      addFlame(cx, cy);
+      addFlame(cx, cy, b.owner);
       const other = bombAt(cx, cy);
       if (other) explode(other);               // chain reaction
     }
@@ -710,7 +712,7 @@ function tick(){
   for (let i = G.flames.length - 1; i >= 0; i--) if (--G.flames[i].t <= 0) G.flames.splice(i, 1);
   for (const p of G.players) {
     if (!p.alive) continue;
-    if (p.boss) { if (!p.inv && flameAt(Math.round(p.x/16), Math.round(p.y/16))) hitBoss(p); continue; }
+    if (p.boss) { const f = flameAt(Math.round(p.x/16), Math.round(p.y/16)); if (!p.inv && f && !f.bossOnly) hitBoss(p); continue; }   // its own fire can't hurt it
     if (flameAt(Math.round(p.x/16), Math.round(p.y/16))) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, SUITS[p.id].glow); }
   }
   for (const m of G.monsters) {

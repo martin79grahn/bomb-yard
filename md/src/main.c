@@ -51,6 +51,8 @@
 
 static u8 cell[CELLS];
 static u8 flame[CELLS];
+static u8 bfire[CELLS];       /* burning only with the boss's own fire, which can't hurt it */
+static u8 fowner;             /* whose bomb the flames being added come from */
 
 static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_BOMBS], b_owner[MAX_BOMBS];
 
@@ -374,6 +376,8 @@ static void redraw_around(u8 ci) {
 }
 
 static void add_flame(u8 ci) {
+    if (boss && fowner == 1) { if (!FLAME(ci)) bfire[ci] = 1; }
+    else bfire[ci] = 0;
     if (!FLAME(ci)) SET_ITEM(ci, 0);
     flame[ci] = FLAME_TIME;
     draw_obj(ci);
@@ -412,6 +416,7 @@ static void explode(u8 b) {
     b_used[b] = 0;
     cell[ci] &= ~HAS_BOMB;
     if (pactive[o]) --pactive[o];
+    fowner = o;
     sfx_boom();
     add_flame(ci);
     for (d = 0; d < 4; ++d) blast_line(ci, r, d);
@@ -802,7 +807,8 @@ static u8 play_level(void) {
 
         for (pl = 0; pl < nplayers; ++pl)
             if (palive[pl] && FLAME(((py[pl] + 8) >> 4) * GW + ((px[pl] + 8) >> 4))) { pburned[pl] = 1; kill_player(pl); }
-        if (boss && palive[1] && !binv && FLAME(((py[1] + 8) >> 4) * GW + ((px[1] + 8) >> 4))) hit_boss();
+        kx = ((py[1] + 8) >> 4) * GW + ((px[1] + 8) >> 4);
+        if (boss && palive[1] && !binv && FLAME(kx) && !bfire[kx]) hit_boss();   /* its own fire can't hurt it */
         for (m = 0; m < NMON; ++m) {
             if (!malive[m]) continue;
             if (FLAME(((my[m] + 8) >> 4) * GW + ((mx[m] + 8) >> 4))) {

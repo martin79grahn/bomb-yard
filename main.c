@@ -91,6 +91,10 @@ static u8 dq_head, dq_tail;
 #define HAS_BOMB        0x10
 #define BOMB(ci)        (cell[ci] & HAS_BOMB)
 #define FLAME(ci)       (flame[ci] & 0x7F)
+/* cells burning only with the boss's own fire, which can't hurt it (1 bit per cell) */
+static u8 bfire[CELLS / 8];
+static u8 fowner;             /* whose bomb the flames being added come from */
+#define BOSS_FIRE(ci)   (bfire[(ci) >> 3] & (1 << ((ci) & 7)))
 static u8 attr[64];
 
 /* the bomb slots live in the zero page, which has room to spare */
@@ -592,6 +596,8 @@ static void mark_flame_around(u8 ci) {
   if (FLAME(ci + GW)) mark(ci + GW);
 }
 static void add_flame(u8 ci) {
+  if (boss && fowner == 1) { if (!FLAME(ci)) bfire[ci >> 3] |= 1 << (ci & 7); }
+  else bfire[ci >> 3] &= ~(1 << (ci & 7));
   if (!FLAME(ci)) SET_ITEM(ci, 0);   /* burns a power-up lying there, not one just uncovered */
   flame[ci] = (flame[ci] & 0x80) | FLAME_TIME;
   mark(ci);
@@ -630,6 +636,7 @@ static void explode(u8 b) {
   b_used[b] = 0;
   cell[ci] &= ~HAS_BOMB;
   if (pactive[o]) --pactive[o];
+  fowner = o;
   sfx_boom();
   add_flame(ci);
   for (d = 0; d < 4; ++d) blast_line(ci, r, d);
@@ -1075,7 +1082,8 @@ static u8 play_level(void) {
     /* fire and monster contact */
     for (pl = 0; pl < nplayers; ++pl)
       if (palive[pl] && FLAME(((py[pl] + 8) >> 4) * GW + ((px[pl] + 8) >> 4))) { pburned[pl] = 1; kill_player(pl); }
-    if (boss && palive[1] && !binv && FLAME(((py[1] + 8) >> 4) * GW + ((px[1] + 8) >> 4))) hit_boss();
+    k = ((py[1] + 8) >> 4) * GW + ((px[1] + 8) >> 4);
+    if (boss && palive[1] && !binv && FLAME(k) && !BOSS_FIRE(k)) hit_boss();   /* its own fire can't hurt it */
     for (m = 0; m < NMON; ++m) {
       if (!malive[m]) continue;
       if (FLAME(((my[m] + 8) >> 4) * GW + ((mx[m] + 8) >> 4))) {
