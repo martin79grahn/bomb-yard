@@ -2,13 +2,13 @@
 
 En NES-version av Bomb Yard med två lägen:
 
-- **1 spelare:** du är Bit och ska spränga de två Kraxarna i tre levels, The Yard, Sand Pit och Frost Cave. Varje level har tre minuter på klockan.
+- **1 spelare:** du är Bit och ska spränga de två Kraxarna i tre levels, The Yard, Sand Pit och Frost Cave. Varje level har tre minuter på klockan. Innan spelet väljer du hur många liv du har, 3, 5 eller 10. Varje gång du dör förlorar du ett liv och försöker banan igen, och när liven är slut är det game over. Ibland lämnar en sprängd sten ett hjärta, som ger ett extra liv. Det finns bara i 1-spelarläget.
 - **2 spelare:** spräng varandra på en slumpad bana. Spelare 2 (röd) använder handkontroll 2. Tar tiden slut blir rundan oavgjord. Innan matchen väljer du på en inställningsskärm:
   - **Level:** The Yard, Sand Pit eller Frost Cave.
   - **Monsters:** på eller av. När de är på går två Kraxar runt på banan, och den som nuddar en är ute.
   - **Wins:** hur många vunna rundor som krävs för att vinna matchen, 3, 5 eller 10.
 
-Överst på skärmen står `B` för antal bomber, `F` för sprängräckvidd och `S` för hur många skor (fart) du har plockat. I 2-spelarläget står också vunna rundor av hur många som krävs, till exempel `P1 2/5`.
+Överst på skärmen står `B` för antal bomber, `F` för sprängräckvidd och `S` för hur många skor (fart) du har plockat. I 1-spelarläget står också hur många liv du har kvar, och i 2-spelarläget vunna rundor av hur många som krävs, till exempel `P1 2/5`.
 
 Varje bana har egen musik: djungeltrummor med bongotrummor i The Yard, orientalisk musik i Sand Pit (skalan D hijaz, med vibrato och maqsum-rytm) och lugn, atmosfärisk musik med eko och vind i Frost Cave. När det är 20 sekunder kvar går musiken upp ett halvt tonsteg och blir snabbare, och en klocka börjar ticka.
 

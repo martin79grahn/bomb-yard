@@ -3,7 +3,8 @@
 
 Pattern table 0 ($0000) holds background tiles:
   0        HUD/blank tile (all colour 3)
-  1..40    font (see FONT below), white on colour 3
+  1..42    font (see FONT below), white on colour 3
+  $2C,$2D,$3C,$3D  the extra-life heart (16 x 16, item palette: 1 outline, 2 shine, 3 fill)
   $40-$7F  the cart's map tiles, sprite-sheet rows 4-7, at the same index as in PICO-8
 Pattern table 1 ($1000) holds sprites:
   $00-$2F  the bomber frames (sheet rows 0-2)
@@ -118,6 +119,29 @@ for i, ch in enumerate(FONT_ORDER):
     bg[1 + i] = encode(font_tile(FONT[ch]))
 for t, (cmap, default) in BG_GROUPS.items():
     bg[t] = encode(mapped(t, cmap, default))
+
+# the extra-life heart, drawn from the heart curve: fill, a dark outline and a shine
+def heart_pixels():
+    px = [[0] * 16 for _ in range(16)]
+    inside = lambda x, y: (x * x + y * y - 1) ** 3 - x * x * y ** 3 <= 0
+    for y in range(16):
+        for x in range(16):
+            if inside((x - 7.5) / 6.2, (8.0 - y) / 6.2):
+                px[y][x] = 3
+    for y in range(16):
+        for x in range(16):
+            if px[y][x] == 3 and any(not (0 <= x + dx < 16 and 0 <= y + dy < 16) or px[y + dy][x + dx] == 0
+                                     for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                px[y][x] = 1
+    for x, y in ((4, 4), (5, 4), (4, 5), (4, 6), (5, 5)):
+        px[y][x] = 2
+    return px
+
+
+heart = heart_pixels()
+for i, t in enumerate((0x2C, 0x2D, 0x3C, 0x3D)):
+    ox, oy = (i & 1) * 8, (i >> 1) * 8
+    bg[t] = encode([row[ox:ox + 8] for row in heart[oy:oy + 8]])
 
 spr = [bytes(16)] * 256
 for t in list(range(0x00, 0x0E)) + list(range(0x10, 0x1E)) + list(range(0x20, 0x2E)):

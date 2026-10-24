@@ -162,10 +162,16 @@ body:not(.two) .pad.p2 { display: none; }
       <div class="overlay" id="overlay">
         <div class="box">
           <p class="big" id="ovTitle">BOMB YARD</p>
-          <p class="sub" id="ovSub">Blow up the stone, grab the power-ups, catch the other player in your blast. First to 3 rounds wins.</p>
+          <p class="sub" id="ovSub">Blow up the stone, grab the power-ups, catch the other player in your blast. 2 players: first to 3 rounds wins.</p>
           <div class="styles" id="ovStyles" role="group" aria-label="Game look">
             <button id="btnClassic" type="button" aria-pressed="true">Classic mode</button>
             <button id="btnEnhanced" type="button" aria-pressed="false">New enhanced mode</button>
+          </div>
+          <div class="styles" id="ovOpts" role="group" aria-label="2-player options">
+            <button id="optArena" type="button" title="2 players: which arena">Arena: changes</button>
+            <button id="optMonsters" type="button" title="2 players: monsters in the arena">Monsters: off</button>
+            <button id="optWins" type="button" title="2 players: rounds needed to win">Wins: 3</button>
+            <button id="optLives" type="button" title="1 player: lives">Lives: 3</button>
           </div>
           <div class="modes" id="ovModes">
             <button id="btnCpu" type="button">1P vs monsters</button>
@@ -254,7 +260,7 @@ function spr(sheet, n, x, y, w = 1, h = 1, flip = false, c = ctx){
 // ---------- constants from the cart ----------
 const BOMB_SPR = 70, EXPLOSION_SPR = 72, SHOE_SPR = 74, BOMB_POWER_SPR = 76, FIRE_POWER_SPR = 96;
 const CEMENT = 0x40, STONE = 0x42, GRASS = 0x44;
-const FUSE = 180, FLAME_TIME = 60, MAX_SPEEDUPS = 4, SPEED_STEP = 0.25, WINS_NEEDED = 3;   // 4 shoes take you from 1 to 2 px/frame (8 frames per cell)
+const FUSE = 180, FLAME_TIME = 60, MAX_SPEEDUPS = 4, SPEED_STEP = 0.25;   // 4 shoes take you from 1 to 2 px/frame (8 frames per cell)
 const ANIM = {
   l: { f: [8,10,12,10],  flip: [false,false,false,false] },
   r: { f: [8,10,12,10],  flip: [true,true,true,true] },
@@ -424,6 +430,11 @@ let G = null;            // current round
 let mode = null;         // "cpu" | "2p"
 let wins = [0, 0];
 let level = 1;           // 1-player level, 1..LEVELS.length
+// 2-player options, kept between visits: arena (-1 = a new one every round), monsters, wins needed
+const opts = { arena: -1, monsters: false, wins: 3, lives: 3 };
+try { Object.assign(opts, JSON.parse(localStorage.getItem("by-opts") || "{}")); } catch (e) {}
+function winsNeeded(){ return opts.wins; }
+let lives = 0;           // 1-player lives left
 let roundNo = 0;         // 2-player rounds played; the arena changes every round
 let debug = false;       // debug mode: player 1 walks through walls
 let carry = null;        // player 1's power-ups, kept from level to level
@@ -463,7 +474,7 @@ function randomMap(){
 }
 
 // which arena (0..2) is in play: the level in 1-player mode, the next in line in 2-player mode
-function arena(){ return mode === "2p" ? roundNo % LEVELS.length : level - 1; }
+function arena(){ return mode === "2p" ? (opts.arena < 0 ? roundNo % LEVELS.length : opts.arena) : level - 1; }
 
 function newRound(){
   G = { tiles: randomMap(), bombs: [], flames: [], pickups: [], t: 0 };
@@ -471,6 +482,13 @@ function newRound(){
   if (mode === "2p") {
     G.players = [makePlayer(0, N-2, N-2, false), makePlayer(1, 1, 1, false)];
     G.monsters = [];
+    if (opts.monsters) {                          // two monsters in the empty corners; they get both players
+      const speed = LEVELS[arena()].monsterSpeed;
+      const spots = [[N-2, 1], [1, N-2]];
+      G.monsters = style === "enhanced"
+        ? spots.map(([cx, cy], i) => { const kind = ENH_MONSTERS[arena()][i]; return Object.assign(makeMonster(cx, cy, speed * KIND_SPEED[kind]), { kind }); })
+        : spots.map(([cx, cy]) => makeMonster(cx, cy, speed));
+    }
   } else {
     // 1-player: you against two monsters starting in the far corners
     G.players = [makePlayer(0, 1, 1, false)];
@@ -547,7 +565,8 @@ function explode(b){
       if (t === "stone") {
         setCellTiles(cx, cy, GRASS); fxBreak(cx, cy);
         const types = ["shoe", "fire", "bomb"];
-        G.pickups.push({ cx, cy, type: types[Math.floor(Math.random()*3)], fresh: true });
+        const type = mode === "cpu" && Math.random() < 0.05 ? "life" : types[Math.floor(Math.random()*3)];   // extra lives: 1 player only
+        G.pickups.push({ cx, cy, type, fresh: true });
         addFlame(cx, cy);
         break;                                 // stone stops the blast
       }
@@ -564,6 +583,7 @@ function collect(p){
   if (pk.type === "shoe" && p.speedUps < MAX_SPEEDUPS) { p.speedUps++; p.speed = 1 + p.speedUps * SPEED_STEP; }
   if (pk.type === "fire") p.fire++;
   if (pk.type === "bomb") p.bombs++;
+  if (pk.type === "life") { lives = Math.min(99, lives + 1); SFX.win(); renderHud(); return; }
   SFX.pickup(); renderHud();
 }
 
@@ -635,8 +655,15 @@ function tick(){
 
 // ---------- 1-player levels ----------
 function soloDied(){
-  phase = "roundover";
-  showOverlay(G.timeUp ? "Time's up" : "The monsters got you", `Try level ${level} again. Starting in a moment.`, null);
+  lives = Math.max(0, lives - 1);
+  const why = G.timeUp ? "Time's up" : "The monsters got you";
+  if (lives === 0) {
+    phase = "matchover"; renderHud();
+    showOverlay(`${why}. Game over`, `You reached level ${level}. Press Enter or Space to play again.`, "victory");
+    return;
+  }
+  phase = "roundover"; renderHud();
+  showOverlay(why, `Try level ${level} again. ${lives} ${lives === 1 ? "life" : "lives"} left.`, null);
   setTimeout(() => { if (phase === "roundover") { newRound(); hideOverlay(); phase = "play"; } }, 1800);
 }
 function soloCleared(p){
@@ -658,12 +685,13 @@ function endRound(winner){
     wins[winner.id]++;
     title = mode === "cpu" ? (winner.id === 0 ? "You cleared the yard" : "The monsters got you") : `${playerName(winner.id)} wins the round`;
   } else title = G.timeUp ? "Time's up. Nobody scores" : "Draw. Nobody scores";
-  if (winner && wins[winner.id] >= WINS_NEEDED) {
+  if (winner && wins[winner.id] >= winsNeeded()) {
     phase = "matchover"; SFX.win();
     showOverlay(mode === "cpu" ? (winner.id === 0 ? "You win the match" : "The monsters win") : `${playerName(winner.id)} wins the match`, `${wins[0]}–${wins[1]}. Press Enter or Space for a rematch.`, "rematch");
   } else {
     phase = "roundover";
-    sub = mode === "2p" ? `Score ${wins[0]}–${wins[1]}. Next round: ${LEVELS[(roundNo + 1) % LEVELS.length].name}.` : `Score ${wins[0]}–${wins[1]}. Next round starts in a moment.`;
+    const next = opts.arena < 0 ? (roundNo + 1) % LEVELS.length : opts.arena;
+    sub = mode === "2p" ? `Score ${wins[0]}–${wins[1]}. First to ${winsNeeded()}. Next round: ${LEVELS[next].name}.` : `Score ${wins[0]}–${wins[1]}. Next round starts in a moment.`;
     showOverlay(title, sub, null);
     setTimeout(() => { if (phase === "roundover") { if (mode === "2p") roundNo++; newRound(); hideOverlay(); phase = "play"; } }, 1800);
   }
@@ -825,6 +853,7 @@ function showOverlay(title, sub, buttons){
   ovTitle.textContent = title; ovSub.textContent = sub;
   ovModes.hidden = !buttons;
   document.getElementById("ovStyles").hidden = buttons !== "menu";
+  document.getElementById("ovOpts").hidden = buttons !== "menu";
   btnDebug.hidden = buttons !== "menu";
   if (buttons === "victory") { btnCpu.textContent = "Play again"; btn2p.textContent = "2 players"; }
   else if (buttons === "rematch") { btnCpu.textContent = mode === "cpu" ? "Rematch" : "1P vs monsters"; btn2p.textContent = mode === "2p" ? "Rematch" : "2 players"; }
@@ -851,9 +880,22 @@ btnClassic.addEventListener("click", () => { audio(); setStyle("classic"); });
 btnEnhanced.addEventListener("click", () => { audio(); setStyle("enhanced"); });
 document.getElementById("btnMenu").addEventListener("click", () => {
   document.body.classList.remove("two");
-  phase = "menu"; showOverlay("BOMB YARD", "Blow up the stone, grab the power-ups, catch the other player in your blast. First to 3 rounds wins.", "menu");
+  phase = "menu"; showOverlay("BOMB YARD", "", "menu"); renderOpts();
   statusEl.textContent = "Pick a mode to start.";
 });
+const optArena = document.getElementById("optArena"), optMonsters = document.getElementById("optMonsters"), optWins = document.getElementById("optWins"), optLives = document.getElementById("optLives");
+function renderOpts(){
+  optArena.textContent = `Arena: ${opts.arena < 0 ? "changes" : LEVELS[opts.arena].name}`;
+  optMonsters.textContent = `Monsters: ${opts.monsters ? "on" : "off"}`;
+  optWins.textContent = `Wins: ${opts.wins}`;
+  optLives.textContent = `Lives: ${opts.lives}`;
+  if (phase === "menu") ovSub.textContent = `Blow up the stone, grab the power-ups, catch the other player in your blast. 2 players: first to ${opts.wins} rounds wins.`;
+  try { localStorage.setItem("by-opts", JSON.stringify(opts)); } catch (e) {}
+}
+optArena.addEventListener("click", () => { opts.arena = opts.arena + 1 >= LEVELS.length ? -1 : opts.arena + 1; renderOpts(); });
+optMonsters.addEventListener("click", () => { opts.monsters = !opts.monsters; renderOpts(); });
+optWins.addEventListener("click", () => { opts.wins = opts.wins === 3 ? 5 : opts.wins === 5 ? 10 : 3; renderOpts(); });
+optLives.addEventListener("click", () => { opts.lives = opts.lives === 3 ? 5 : opts.lives === 5 ? 10 : 3; renderOpts(); });
 const btnMute = document.getElementById("btnMute");
 function toggleMute(){ muted = !muted; btnMute.textContent = `Sound: ${muted ? "off" : "on"}`; }
 btnMute.addEventListener("click", toggleMute);
@@ -865,12 +907,30 @@ function togglePause(){
 
 function start(m, dbg = false){
   audio();
-  mode = m; debug = m === "cpu" && dbg; level = 1; roundNo = 0; carry = null; wins = [0, 0]; order[0].length = 0; order[1].length = 0;
+  mode = m; debug = m === "cpu" && dbg; level = 1; roundNo = 0; carry = null; wins = [0, 0]; lives = opts.lives; order[0].length = 0; order[1].length = 0;
   document.body.classList.toggle("two", m === "2p");
   newRound(); hideOverlay(); phase = "play";
   statusEl.textContent = debug ? "Debug: you walk through walls · P or Esc pauses" : m === "cpu" ? "1P vs monsters · P or Esc pauses · M mutes" : "2 players · P or Esc pauses · M mutes";
   renderKeys(); renderHud();
 }
+
+// the extra life: a 16 x 16 pixel heart in the cart's colours (red, dark outline, white shine)
+const HEART = (() => {
+  const c = document.createElement("canvas"); c.width = 16; c.height = 16;
+  const x = c.getContext("2d"), img = x.createImageData(16, 16);
+  const inside = (u, v) => (u*u + v*v - 1) ** 3 - u*u * v**3 <= 0;
+  const fill = [], put = (px, py, rgb) => { const i = (py*16 + px) * 4; img.data.set([...rgb, 255], i); };
+  for (let py = 0; py < 16; py++) for (let px = 0; px < 16; px++) fill[py*16+px] = inside((px - 7.5) / 6.2, (8 - py) / 6.2);
+  for (let py = 0; py < 16; py++) for (let px = 0; px < 16; px++) {
+    if (!fill[py*16+px]) continue;
+    const edge = [[1,0],[-1,0],[0,1],[0,-1]].some(([dx, dy]) => !fill[(py+dy)*16 + px+dx] || px+dx < 0 || px+dx > 15 || py+dy < 0 || py+dy > 15);
+    put(px, py, edge ? [126, 37, 83] : [255, 0, 77]);
+  }
+  for (const [px, py] of [[4,4],[5,4],[4,5],[4,6],[5,5]]) put(px, py, [255, 241, 232]);
+  x.putImageData(img, 0, 0);
+  return c;
+})();
+function heartCanvas(){ const c = document.createElement("canvas"); c.width = 16; c.height = 16; c.getContext("2d").drawImage(HEART, 0, 0); return c; }
 
 function iconCanvas(n, sheet = SHEET){
   const c = document.createElement("canvas"); c.width = 16; c.height = 16;
@@ -880,7 +940,7 @@ function renderHud(){
   const lvl = document.getElementById("lvl");
   lvl.hidden = !mode;
   lvl.classList.toggle("debug", debug);
-  lvl.textContent = mode === "2p" ? LEVELS[arena()].name.toUpperCase() : debug ? `DEBUG · LEVEL ${level}/${LEVELS.length}` : `LEVEL ${level}/${LEVELS.length}`;
+  lvl.textContent = mode === "2p" ? `${LEVELS[arena()].name.toUpperCase()} · FIRST TO ${winsNeeded()}` : `${debug ? "DEBUG · " : ""}LEVEL ${level}/${LEVELS.length} · LIVES ${lives}`;
   for (const id of [0, 1]) {
     const p = (G && G.players[id]) || makePlayer(id, 0, 0, false);
     const monsters = id === 1 && mode !== "2p";
@@ -888,17 +948,18 @@ function renderHud(){
     const solo = mode !== "2p";
     const filled = solo ? (id === 0 ? level - 1 + (phase === "victory" ? 1 : 0) : 0) : wins[id];
     document.getElementById("pips" + (id+1)).innerHTML = solo && id === 1 ? "" :
-      Array.from({ length: solo ? LEVELS.length : WINS_NEEDED }, (_, i) => `<span class="pip${i < filled ? " on" : ""}"></span>`).join("");
+      Array.from({ length: solo ? LEVELS.length : winsNeeded() }, (_, i) => `<span class="pip${i < filled ? " on" : ""}"></span>`).join("");
     document.getElementById("who" + (id+1)).textContent = id === 0 ? (mode === "2p" ? "Human" : "You") : (mode === "2p" ? "Human" : "Monsters");
     const dl = document.getElementById("stats" + (id+1)); dl.innerHTML = "";
     const total = G && G.monsters && G.monsters.length ? G.monsters.length : MONSTER_COUNT;
     const left = G && G.monsters ? G.monsters.filter(m => m.alive).length : total;
     const rows = monsters
       ? [[MONSTER_SPR, "Monsters left", `${left}/${total}`, SHEET_MON]]
-      : [[BOMB_POWER_SPR, "Bombs", p.bombs], [FIRE_POWER_SPR, "Blast range", p.fire], [SHOE_SPR, "Speed", `${p.speedUps}/${MAX_SPEEDUPS}`]];
+      : [[BOMB_POWER_SPR, "Bombs", p.bombs], [FIRE_POWER_SPR, "Blast range", p.fire], [SHOE_SPR, "Speed", `${p.speedUps}/${MAX_SPEEDUPS}`]]
+        .concat(mode === "cpu" && id === 0 ? [["heart", "Lives", lives]] : []);
     for (const [spn, label, val, sheet] of rows) {
       const row = document.createElement("div"); row.className = "stat";
-      row.append(iconCanvas(spn, sheet));
+      row.append(spn === "heart" ? heartCanvas() : iconCanvas(spn, sheet));
       row.insertAdjacentHTML("beforeend", `<dt>${label}</dt><dd>${val}</dd>`);
       dl.append(row);
     }
@@ -922,7 +983,10 @@ function draw(){
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, N*16, N*16);
   const tiles = LEVEL_SHEETS[arena()];
   for (let ty = 0; ty < N*2; ty++) for (let tx = 0; tx < N*2; tx++) spr(tiles, G.tiles[ty][tx], tx*8, ty*8);
-  for (const pk of G.pickups) spr(SHEET, PICKUP_SPR[pk.type], pk.cx*16, pk.cy*16, 2, 2);
+  for (const pk of G.pickups) {
+    if (pk.type === "life") ctx.drawImage(HEART, pk.cx*16, pk.cy*16);
+    else spr(SHEET, PICKUP_SPR[pk.type], pk.cx*16, pk.cy*16, 2, 2);
+  }
   for (const b of G.bombs) {
     const flash = b.fuse < 60 && Math.floor(b.fuse / 5) % 2 === 0;
     spr(flash ? SHEET_FLASH : SHEET, BOMB_SPR, b.cx*16, b.cy*16, 2, 2);
@@ -1313,6 +1377,7 @@ function drawBomb(c, b, t){
 }
 
 const PICK_STYLE = {
+  life: { a: "#ff4d6d", b: "#9a0d2b" },
   shoe: { a: "#4fc3ff", b: "#1565c0" },
   fire: { a: "#ffb347", b: "#e8590c" },
   bomb: { a: "#b388ff", b: "#5e35b1" },
@@ -1329,6 +1394,8 @@ function drawPickup(c, pk, t){
     c.beginPath(); c.moveTo(2, -8); c.lineTo(-5, 1); c.lineTo(0, 1); c.lineTo(-2, 8); c.lineTo(5, -2); c.lineTo(0, -2); c.closePath(); c.fill();
   } else if (pk.type === "fire") {   // flame: longer blasts
     c.beginPath(); c.moveTo(0, -8); c.bezierCurveTo(6, -2, 6, 7, 0, 7); c.bezierCurveTo(-6, 7, -6, 0, -2, -3); c.bezierCurveTo(-1, 0, 1, 0, 0, -8); c.fill();
+  } else if (pk.type === "life") {   // heart: one more life
+    c.beginPath(); c.moveTo(0, 7); c.bezierCurveTo(-9, 0, -6, -8, 0, -3.5); c.bezierCurveTo(6, -8, 9, 0, 0, 7); c.fill();
   } else {                           // bomb: one more bomb at a time
     c.beginPath(); c.arc(-1, 2, 5.5, 0, Math.PI * 2); c.fill();
     c.lineWidth = 1.6; c.beginPath(); c.moveTo(2, -3); c.quadraticCurveTo(4, -7, 7, -6); c.stroke();
@@ -1654,14 +1721,14 @@ function frame(now){
 function boot(data){
   if (data.style) style = data.style;
   setStyle(style);
-  mode = data.mode || null; wins = data.wins || [0, 0]; roundNo = data.roundNo || 0; level = data.level || 1;
+  mode = data.mode || null; wins = data.wins || [0, 0]; roundNo = data.roundNo || 0; level = data.level || 1; lives = data.lives || opts.lives;
   if (!mode) { mode = "cpu"; newRound(); mode = null; } else newRound();
-  renderKeys(); renderHud();
+  renderKeys(); renderHud(); renderOpts();
   if (data.mode) { mode = data.mode; document.body.classList.toggle("two", mode === "2p"); phase = "paused"; showOverlay("Paused", "Press P or Esc to keep playing.", null); }
   requestAnimationFrame(frame);
 }
 document.querySelectorAll("button").forEach(b => b.addEventListener("click", () => b.blur()));
-window.claude?.hot?.snapshot?.(() => ({ mode, wins, roundNo, level, style }));
+window.claude?.hot?.snapshot?.(() => ({ mode, wins, roundNo, level, style, lives }));
 window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
 </script>
 
