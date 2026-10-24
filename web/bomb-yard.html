@@ -243,6 +243,8 @@ function buildSheet(remap, transp = TRANSP){
 }
 const SHEET = buildSheet();
 const SHEET_RED = buildSheet({7:8, 6:8, 13:8});   // same recolor as the cart's player 2
+// the boss: a lavender suit, pink and red once it has taken two hits
+const SHEET_BOSS = buildSheet({7:13, 6:1, 13:1}), SHEET_BOSS_ANGRY = buildSheet({7:14, 6:8, 13:8});
 const FLASH = {}; for (let i = 0; i < 16; i++) FLASH[i] = 7;
 const SHEET_FLASH = buildSheet(FLASH);
 // the cart's creature sprite (78) sits on a pink background, so pink is its see-through colour
@@ -430,6 +432,10 @@ let G = null;            // current round
 let mode = null;         // "cpu" | "2p"
 let wins = [0, 0];
 let level = 1;           // 1-player level, 1..LEVELS.length
+let boss = false;        // 1-player boss stage, between levels 1 and 2 (level stays 1)
+// power-ups hidden under the stones of each arena; the heart only in the 1-player game
+const POOL = { bomb: 5, fire: 5, shoe: 2, life: 1 };
+const BOSS = { hp: 3, fire: 5, bombs: 2, angryBombs: 3, speed: 0.875, angrySpeed: 1.15 };
 // 2-player options, kept between visits: arena (-1 = a new one every round), monsters, wins needed
 const opts = { arena: -1, monsters: false, wins: 3, lives: 3 };
 try { Object.assign(opts, JSON.parse(localStorage.getItem("by-opts") || "{}")); } catch (e) {}
@@ -489,7 +495,7 @@ function randomMap(){
     const edge = cx === 0 || cy === 0 || cx === N-1 || cy === N-1;
     const pillar = cx % 2 === 0 && cy % 2 === 0 && cx < N-2 && cy < N-2;
     if (edge || pillar) put(cx, cy, CEMENT);
-    else if (!safe.has(cx + cy*N) && Math.random() < 0.6) put(cx, cy, STONE);
+    else if (!safe.has(cx + cy*N) && Math.random() < (boss ? 0.35 : 0.6)) put(cx, cy, STONE);
     else if (Math.random() < 0.25) put(cx, cy, GRASS);   // the cart's grass with tufts
   }
   return tiles;
@@ -498,8 +504,22 @@ function randomMap(){
 // which arena (0..2) is in play: the level in 1-player mode, the next in line in 2-player mode
 function arena(){ return mode === "2p" ? (opts.arena < 0 ? roundNo % LEVELS.length : opts.arena) : level - 1; }
 
+// pick which stones hide the power-ups: cell index -> type
+function hideItems(){
+  const stones = [];
+  for (let cy = 0; cy < N; cy++) for (let cx = 0; cx < N; cx++) if (cellType(cx, cy) === "stone") stones.push(cx + cy*N);
+  for (let i = stones.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [stones[i], stones[j]] = [stones[j], stones[i]]; }
+  const hidden = new Map();
+  for (const [type, n] of Object.entries(POOL)) {
+    if (type === "life" && mode !== "cpu") continue;
+    for (let i = 0; i < n && stones.length; i++) hidden.set(stones.pop(), type);
+  }
+  return hidden;
+}
+
 function newRound(){
   G = { tiles: randomMap(), bombs: [], flames: [], pickups: [], t: 0 };
+  G.hidden = hideItems();
   // in 2-player mode P1 starts in the bottom corner, near the bottom pad, and P2 near the top pad
   if (mode === "2p") {
     G.players = [makePlayer(0, N-2, N-2, false), makePlayer(1, 1, 1, false)];
@@ -515,6 +535,15 @@ function newRound(){
     // 1-player: you against two monsters starting in the far corners
     G.players = [makePlayer(0, 1, 1, false)];
     if (carry) Object.assign(G.players[0], carry);
+    if (boss) {   // the boss stage: one bomber that fights back, no monsters
+      G.players.push(Object.assign(makePlayer(1, N-2, N-2, true),
+        { boss: true, hp: BOSS.hp, inv: 0, fire: BOSS.fire, bombs: BOSS.bombs, speed: BOSS.speed, wait: 90 }));
+      G.monsters = [];
+      G.confetti = []; G.fx = [];
+      G.time = ROUND_TIME; G.timeUp = false;
+      renderHud();
+      return;
+    }
     const speed = LEVELS[level - 1].monsterSpeed;
     const spots = [[N-2, N-2], [N-2, 1], [1, N-2]];
     G.monsters = style === "enhanced"
@@ -586,9 +615,8 @@ function explode(b){
       if (t === "cement") break;
       if (t === "stone") {
         setCellTiles(cx, cy, GRASS); fxBreak(cx, cy);
-        const types = ["shoe", "fire", "bomb"];
-        const type = mode === "cpu" && Math.random() < 0.05 ? "life" : types[Math.floor(Math.random()*3)];   // extra lives: 1 player only
-        G.pickups.push({ cx, cy, type, fresh: true });
+        const type = G.hidden.get(cx + cy*N);
+        if (type) G.pickups.push({ cx, cy, type, fresh: true });
         addFlame(cx, cy);
         break;                                 // stone stops the blast
       }
@@ -600,6 +628,7 @@ function explode(b){
 }
 
 function collect(p){
+  if (p.boss) return;                          // the boss picks nothing up
   const pk = pickupAt(p.cx, p.cy); if (!pk) return;
   G.pickups.splice(G.pickups.indexOf(pk), 1);
   if (pk.type === "shoe" && p.speedUps < MAX_SPEEDUPS) { p.speedUps++; p.speed = 1 + p.speedUps * SPEED_STEP; }
@@ -651,6 +680,7 @@ function steer(p){
 
 function updatePlayer(p){
   if (!p.alive) { if (p.deathT > 0) p.deathT--; return; }
+  if (p.inv > 0) p.inv--;
   if (!p.cpu && tap[p.id] && --tapT[p.id] <= 0) tap[p.id] = null;
   if (!p.cpu && p.moving) steer(p);
   if (!p.moving) {
@@ -679,6 +709,7 @@ function tick(){
   for (let i = G.flames.length - 1; i >= 0; i--) if (--G.flames[i].t <= 0) G.flames.splice(i, 1);
   for (const p of G.players) {
     if (!p.alive) continue;
+    if (p.boss) { if (!p.inv && flameAt(Math.round(p.x/16), Math.round(p.y/16))) hitBoss(p); continue; }
     if (flameAt(Math.round(p.x/16), Math.round(p.y/16))) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, SUITS[p.id].glow); }
   }
   for (const m of G.monsters) {
@@ -692,13 +723,13 @@ function tick(){
   // the clock: when it hits zero the arena is lost. 1-player dies, 2-player is a draw
   if (phase === "play" && G.time > 0 && --G.time === 0) {
     G.timeUp = true; SFX.die();
-    for (const p of G.players) if (p.alive) { p.alive = false; p.deathT = 60; }
+    for (const p of G.players) if (p.alive && !p.boss) { p.alive = false; p.deathT = 60; }
   }
 
   if (phase === "play" && mode === "cpu") {
     const p = G.players[0];
     if (!p.alive && p.deathT <= 0) soloDied();
-    else if (p.alive && G.monsters.every(m => !m.alive && m.deathT <= 0)) soloCleared(p);
+    else if (p.alive && G.monsters.every(m => !m.alive && m.deathT <= 0) && G.players.every(b => !b.boss || (!b.alive && b.deathT <= 0))) soloCleared(p);
   } else if (phase === "play") {
     const alive = G.players.filter(p => p.alive);
     const dying = G.players.some(p => !p.alive && p.deathT > 0);
@@ -706,17 +737,25 @@ function tick(){
   }
 }
 
+// three hits beat the boss; after two it turns red, gets quicker and drops three bombs at a time
+function hitBoss(b){
+  b.hp--; b.inv = 90; SFX.die(); fxPop(b.x, b.y, "#c58bff"); shake = Math.min(10, shake + 4);
+  if (b.hp === 1) { b.speed = BOSS.angrySpeed; b.bombs = BOSS.angryBombs; }
+  if (b.hp <= 0) { b.alive = false; b.deathT = 60; SFX.win(); }
+  renderHud();
+}
+
 // ---------- 1-player levels ----------
 function soloDied(){
   lives = Math.max(0, lives - 1);
-  const why = G.timeUp ? "Time's up" : "The monsters got you";
+  const why = G.timeUp ? "Time's up" : boss ? "The boss got you" : "The monsters got you";
   if (lives === 0) {
     phase = "matchover"; renderHud();
     showOverlay(`${why}. Game over`, `You reached level ${level}. Press Enter or Space to play again.`, "victory");
     return;
   }
   phase = "roundover"; renderHud();
-  showOverlay(why, `Try level ${level} again. ${lives} ${lives === 1 ? "life" : "lives"} left.`, null);
+  showOverlay(why, `Try ${boss ? "the boss" : `level ${level}`} again. ${lives} ${lives === 1 ? "life" : "lives"} left.`, null);
   setTimeout(() => { if (phase === "roundover") { newRound(); hideOverlay(); phase = "play"; } }, 1800);
 }
 function soloCleared(p){
@@ -727,8 +766,14 @@ function soloCleared(p){
     showOverlay("Congratulations!", `You beat all ${LEVELS.length} levels and cleared every monster. You win!`, "victory");
     return;
   }
-  level++; phase = "roundover"; SFX.win(); renderHud();
-  showOverlay(`Level ${level - 1} cleared`, `Next up: level ${level}, ${LEVELS[level - 1].name}. The monsters are faster now.`, null);
+  if (level === 1 && !boss) {
+    boss = true; phase = "roundover"; SFX.win(); renderHud();
+    showOverlay("Level 1 cleared", "Next up: the boss. It takes three hits, and it drops bombs too.", null);
+  } else {
+    const beat = boss;
+    boss = false; level++; phase = "roundover"; SFX.win(); renderHud();
+    showOverlay(beat ? "Boss defeated" : `Level ${level - 1} cleared`, `Next up: level ${level}, ${LEVELS[level - 1].name}. The monsters are faster now.`, null);
+  }
   setTimeout(() => { if (phase === "roundover") { newRound(); hideOverlay(); phase = "play"; renderHud(); } }, 2200);
 }
 
@@ -823,7 +868,7 @@ function cpuThink(p){
   }
 
   // otherwise walk somewhere useful, never into a blast zone
-  const hasPickups = G.pickups.length > 0;
+  const hasPickups = !p.boss && G.pickups.length > 0;
   let d = hasPickups ? bfs(p, danger, (x, y) => pickupAt(x, y), false) : null;
   if (!d) d = bfs(p, danger, (x, y) => {
     if (bombAt(x, y)) return false;
@@ -961,7 +1006,7 @@ function togglePause(){
 
 function start(m, dbg = false){
   audio();
-  mode = m; debug = m === "cpu" && dbg; level = 1; roundNo = 0; carry = null; wins = [0, 0]; lives = opts.lives; order[0].length = 0; order[1].length = 0; tap[0] = tap[1] = null;
+  mode = m; debug = m === "cpu" && dbg; level = 1; boss = false; roundNo = 0; carry = null; wins = [0, 0]; lives = opts.lives; order[0].length = 0; order[1].length = 0; tap[0] = tap[1] = null;
   document.body.classList.toggle("two", m === "2p");
   newRound(); hideOverlay(); phase = "play";
   statusEl.textContent = debug ? "Debug: you walk through walls · P or Esc pauses" : m === "cpu" ? "1P vs monsters · P or Esc pauses · M mutes" : "2 players · P or Esc pauses · M mutes";
@@ -994,7 +1039,7 @@ function renderHud(){
   const lvl = document.getElementById("lvl");
   lvl.hidden = !mode;
   lvl.classList.toggle("debug", debug);
-  lvl.textContent = mode === "2p" ? `${LEVELS[arena()].name.toUpperCase()} · FIRST TO ${winsNeeded()}` : `${debug ? "DEBUG · " : ""}LEVEL ${level}/${LEVELS.length} · LIVES ${lives}`;
+  lvl.textContent = mode === "2p" ? `${LEVELS[arena()].name.toUpperCase()} · FIRST TO ${winsNeeded()}` : `${debug ? "DEBUG · " : ""}${boss ? "BOSS" : `LEVEL ${level}/${LEVELS.length}`} · LIVES ${lives}`;
   for (const id of [0, 1]) {
     const p = (G && G.players[id]) || makePlayer(id, 0, 0, false);
     const monsters = id === 1 && mode !== "2p";
@@ -1003,11 +1048,14 @@ function renderHud(){
     const filled = solo ? (id === 0 ? level - 1 + (phase === "victory" ? 1 : 0) : 0) : wins[id];
     document.getElementById("pips" + (id+1)).innerHTML = solo && id === 1 ? "" :
       Array.from({ length: solo ? LEVELS.length : winsNeeded() }, (_, i) => `<span class="pip${i < filled ? " on" : ""}"></span>`).join("");
-    document.getElementById("who" + (id+1)).textContent = id === 0 ? (mode === "2p" ? "Human" : "You") : (mode === "2p" ? "Human" : "Monsters");
+    document.getElementById("who" + (id+1)).textContent = id === 0 ? (mode === "2p" ? "Human" : "You") : (mode === "2p" ? "Human" : boss ? "Boss" : "Monsters");
     const dl = document.getElementById("stats" + (id+1)); dl.innerHTML = "";
     const total = G && G.monsters && G.monsters.length ? G.monsters.length : MONSTER_COUNT;
     const left = G && G.monsters ? G.monsters.filter(m => m.alive).length : total;
-    const rows = monsters
+    const bp = boss && G && G.players[1];
+    const rows = monsters && bp
+      ? [[ANIM.d.f[0], "Hits to go", `${Math.max(0, bp.hp)}/${BOSS.hp}`, bp.hp <= 1 ? SHEET_BOSS_ANGRY : SHEET_BOSS], [BOMB_POWER_SPR, "Bombs", bp.bombs], [FIRE_POWER_SPR, "Blast range", bp.fire]]
+      : monsters
       ? [[MONSTER_SPR, "Monsters left", `${left}/${total}`, SHEET_MON]]
       : [[BOMB_POWER_SPR, "Bombs", p.bombs], [FIRE_POWER_SPR, "Blast range", p.fire], [SHOE_SPR, "Speed", `${p.speedUps}/${MAX_SPEEDUPS}`]]
         .concat(mode === "cpu" && id === 0 ? [["heart", "Lives", lives]] : []);
@@ -1056,7 +1104,8 @@ function draw(){
   for (const p of ps) {
     if (!p.alive && p.deathT <= 0) continue;
     const a = ANIM[p.dir], fr = p.moving ? p.frame : 0;
-    let sheet = p.id === 1 ? SHEET_RED : SHEET;
+    let sheet = p.boss ? (p.hp <= 1 ? SHEET_BOSS_ANGRY : SHEET_BOSS) : p.id === 1 ? SHEET_RED : SHEET;
+    if (p.boss && p.alive && p.inv && Math.floor(p.inv / 4) % 2) continue;   // blinks while it can't be hurt
     if (!p.alive) { if (Math.floor(p.deathT / 3) % 2) continue; sheet = SHEET_FLASH; }
     spr(sheet, a.f[fr], p.x, p.y - 8, 2, 3, a.flip[fr]);
   }  // timer, centred on the top wall
@@ -1310,12 +1359,17 @@ const SUITS = [
   { suit: "#f4f5fa", shade: "#c3c7d6", accent: "#3d7bff", glow: "#ffe45c" },
   { suit: "#ff4766", shade: "#c41e3d", accent: "#ffd23f", glow: "#ff9d2e" },
 ];
+const BOSS_SUITS = [
+  { suit: "#a07cff", shade: "#5a33b8", accent: "#ffd23f", glow: "#d6a8ff" },
+  { suit: "#ff5c7a", shade: "#b3123a", accent: "#ffd23f", glow: "#ff4b4b" },
+];
 function blobShadow(c, x, y, rx, ry, a = 0.28){ c.fillStyle = `rgba(0,0,0,${a})`; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); c.fill(); }
 
 function drawBomber(c, p, t){
-  const [x, y] = proj(p.x / 16 + 0.5, p.y / 16 + 0.5), s = SUITS[p.id];
-  let scale = 1, alpha = 1, spin = 0;
-  if (!p.alive) { const k = p.deathT / 60; scale = 0.4 + 0.6 * k; alpha = k; spin = (1 - k) * 6; }
+  const [x, y] = proj(p.x / 16 + 0.5, p.y / 16 + 0.5), s = p.boss ? BOSS_SUITS[p.hp <= 1 ? 1 : 0] : SUITS[p.id];
+  let scale = p.boss ? 1.25 : 1, alpha = 1, spin = 0;
+  if (p.boss && p.alive && p.inv && Math.floor(p.inv / 4) % 2) alpha = 0.3;
+  if (!p.alive) { const k = p.deathT / 60; scale *= 0.4 + 0.6 * k; alpha = k; spin = (1 - k) * 6; }
   const walk = p.moving ? p.frame : 0, bob = p.moving ? Math.abs(Math.sin(G.t * 0.35)) * 2 : Math.sin(t * 0.004) * 0.6;
   blobShadow(c, x, y + 1, 15 * scale, 6 * scale);
   c.save(); c.globalAlpha = alpha; c.translate(x, y); c.scale(scale, scale); c.rotate(spin);
@@ -1561,7 +1615,7 @@ function drawEnhanced(now){
     c.font = "600 18px 'IBM Plex Mono', ui-monospace, monospace"; c.textAlign = "center"; c.textBaseline = "middle";
     c.fillStyle = blink ? "#ffffff" : low ? "#ff6b6b" : "#ffffff"; c.fillText(txt, E.W / 2, 22.5);
     c.font = "700 11px Silkscreen, 'Courier New', monospace"; c.textAlign = "left"; c.fillStyle = "rgba(255,255,255,0.75)";
-    c.fillText(mode === "2p" ? LEVELS[ai].name.toUpperCase() : `LEVEL ${level} · ${LEVELS[ai].name.toUpperCase()}`, 16, 22.5);
+    c.fillText(mode === "2p" ? LEVELS[ai].name.toUpperCase() : boss ? "BOSS FIGHT" : (boss ? "BOSS FIGHT" : `LEVEL ${level} · ${LEVELS[ai].name.toUpperCase()}`), 16, 22.5);
   }
   if (mode && !tilted && phase === "play" && G.t < 300) {   // first rounds: say the arena can be tilted
     c.globalAlpha = Math.min(1, (300 - G.t) / 40);
@@ -1788,14 +1842,14 @@ function frame(now){
 function boot(data){
   if (data.style) style = data.style;
   setStyle(style);
-  mode = data.mode || null; wins = data.wins || [0, 0]; roundNo = data.roundNo || 0; level = data.level || 1; lives = data.lives || opts.lives;
+  mode = data.mode || null; wins = data.wins || [0, 0]; roundNo = data.roundNo || 0; level = data.level || 1; lives = data.lives || opts.lives; boss = !!data.boss;
   if (!mode) { mode = "cpu"; newRound(); mode = null; } else newRound();
   renderKeys(); renderHud(); renderOpts();
   if (data.mode) { mode = data.mode; document.body.classList.toggle("two", mode === "2p"); phase = "paused"; showOverlay("Paused", "Press P or Esc to keep playing.", null); }
   requestAnimationFrame(frame);
 }
 document.querySelectorAll("button").forEach(b => b.addEventListener("click", () => b.blur()));
-window.claude?.hot?.snapshot?.(() => ({ mode, wins, roundNo, level, style, lives }));
+window.claude?.hot?.snapshot?.(() => ({ mode, wins, roundNo, level, style, lives, boss }));
 window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
 </script>
 

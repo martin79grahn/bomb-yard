@@ -4,7 +4,7 @@ Martin writes in Swedish; answer in Swedish. The README is in Swedish too.
 
 ## What's here
 
-- `main.c`, `crt0.s`, `nrom.cfg`: the NES game (cc65, mapper 0 / NROM, 32 KB PRG + 8 KB CHR). 1 player vs Krax monsters over three levels, or 2 players (controller 2) with an options screen for the level, Krax on/off and wins needed (3, 5 or 10). Per-level music engine and songs live in `main.c`.
+- `main.c`, `crt0.s`, `nrom.cfg`: the NES game (cc65, mapper 0 / NROM, 32 KB PRG + 8 KB CHR). 1 player vs Krax monsters over three levels with a boss stage (an AI bomber in player slot 1) between levels 1 and 2, or 2 players (controller 2) with an options screen for the level, Krax on/off and wins needed (3, 5 or 10). Per-level music engine and songs live in `main.c`.
 - `tools/make_chr.py`, `tools/make_notes.py`: generate `chr.bin`, `font.h` (from the PICO-8 cart's sprites) and `notes.h`. New font glyphs go in `FONT` and `FONT_ORDER` in `make_chr.py`.
 - `bomb-yard.nes`: the built ROM, committed so it can be played straight from the repo.
 - `web/bomb-yard.html`: the browser game, one self-contained file. The menu offers **Classic mode** (pixel art, chiptunes matching the NES songs) and **New enhanced mode** (tilted 3D canvas renderer, slime/beetle/wisp monsters, modern WebAudio music). Both share the same game rules and code paths; `style` picks the look.
