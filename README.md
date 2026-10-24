@@ -2,7 +2,7 @@
 
 En NES-version av Bomb Yard med två lägen:
 
-- **1 spelare:** du är Bit och ska spränga de två Kraxarna i tre levels, The Yard, Sand Pit och Frost Cave. Varje level har en minut på klockan.
+- **1 spelare:** du är Bit och ska spränga de två Kraxarna i tre levels, The Yard, Sand Pit och Frost Cave. Varje level har tre minuter på klockan.
 - **2 spelare:** spräng varandra på en slumpad bana. Spelare 2 (röd) använder handkontroll 2. Tar tiden slut blir rundan oavgjord. Innan matchen väljer du på en inställningsskärm:
   - **Level:** The Yard, Sand Pit eller Frost Cave.
   - **Monsters:** på eller av. När de är på går två Kraxar runt på banan, och den som nuddar en är ute.
@@ -10,22 +10,34 @@ En NES-version av Bomb Yard med två lägen:
 
 Överst på skärmen står `B` för antal bomber, `F` för sprängräckvidd och `S` för hur många skor (fart) du har plockat. I 2-spelarläget står också vunna rundor av hur många som krävs, till exempel `P1 2/5`.
 
+Varje bana har egen musik: djungeltrummor med bongotrummor i The Yard, orientalisk musik i Sand Pit (skalan D hijaz, med vibrato och maqsum-rytm) och lugn, atmosfärisk musik med eko och vind i Frost Cave. När det är 20 sekunder kvar går musiken upp ett halvt tonsteg och blir snabbare, och en klocka börjar ticka.
+
 ## Spela
 
 Öppna `bomb-yard.nes` i en NES-emulator, till exempel [Mesen](https://www.mesen.ca) eller [FCEUX](https://fceux.com). På en riktig NES fungerar den med ett flashkort som klarar mapper 0 (NROM), till exempel Everdrive N8.
 
 | Knapp | Gör |
 | --- | --- |
-| Styrkorset | Gå |
+| Styrkorset | Gå. På titelskärmen: välj 1 eller 2 spelare |
 | A eller B | Lägg bomb |
-| Upp/ner (på titelskärmen) | Välj 1 eller 2 spelare |
 | Upp/ner, vänster/höger (inställningar) | Välj rad och ändra värde. B går tillbaka |
-| Start | Börja, pausa och fortsätt |
+| Start | Börja, pausa och fortsätt (båda spelarna kan pausa) |
 | Select (på titelskärmen) | Slå på eller av debugläget, där du går genom väggar (bara 1 spelare) |
+
+Spelare 1 använder handkontroll 1 och har den vita dräkten. Spelare 2 använder handkontroll 2 och har den röda.
 
 ## Webbversionen
 
-`web/bomb-yard.html` är originalspelet för webbläsaren, som hela spelet i en enda fil. Öppna den i en webbläsare på dator eller mobil. Den har några saker som NES-versionen saknar: en större bana på 16×16 rutor, tvåspelarläge på samma telefon och knappar på skärmen för mobilen.
+`web/bomb-yard.html` är originalspelet för webbläsaren, som hela spelet i en enda fil. Öppna den i en webbläsare på dator eller mobil. Den har tvåspelarläge på samma telefon med knappar för båda, en större bana på 16×16 rutor och knappar på skärmen för mobilen. Musiken är samma låtar som i NES-versionen.
+
+### Classic mode och New enhanced mode
+
+I webbversionens meny väljer du utseende innan du startar. Valet sparas till nästa gång.
+
+- **Classic mode:** originalet med PICO-8-cartens pixelgrafik och chiptune-musiken.
+- **New enhanced mode:** samma regler i ny grafik, sedd snett ovanifrån med lite isometrisk vinkel. Blocken är tredimensionella, och det finns skuggor, glödande eld, partiklar och skakande skärm vid explosioner. Varje bana har eget tema: grönska i The Yard, sandsten i Sand Pit och is och snö i Frost Cave.
+  - **Nya monster:** slemklumpar som vandrar runt, skalbaggar som rusar mot dig när de ser dig längs en gång, och irrbloss som svävar efter dig. The Yard har en slemklump och en skalbagge, Sand Pit en skalbagge och ett irrbloss, och Frost Cave alla tre.
+  - **Ny musik:** modern instrumental musik med syntetiserade trummor, bas, synthmattor och eko. Tropical house i The Yard, ökeninspirerad deep house med darbuka och oud-liknande melodi i Sand Pit, och lugn ambient synthwave med klockarpeggio i Frost Cave.
 
 ## Bygga
 
@@ -37,7 +49,7 @@ CC65=/sökväg/till/cc65 ./build.sh
 
 | Fil | Innehåll |
 | --- | --- |
-| `main.c` | Spelet |
+| `main.c` | Spelet, inklusive musikmotorn och låtarna för de tre banorna |
 | `crt0.s` | Uppstart och NMI-rutin, som kopierar grafik till PPU:n under vblank |
 | `nrom.cfg` | Minneskarta för NROM: 32 KB program och 8 KB grafik |
 | `tools/make_chr.py` | Gör NES-grafik (`chr.bin`) och typsnitt (`font.h`) från PICO-8-cartens sprites |

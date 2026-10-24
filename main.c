@@ -2,8 +2,11 @@
  * Bomb Yard for the NES (NROM, cc65)
  *
  * A port of the browser game. 1 player: clear the two Krax monsters across
- * three levels, a minute on the clock each. 2 players: blast each other on
- * a random yard, first to 3 rounds wins (second player on controller 2).
+ * three levels, three minutes on the clock each. 2 players: blast each other
+ * (second player on controller 2); an options screen picks the level, Krax
+ * on/off and the wins needed (3, 5 or 10).
+ * Each level has its own music: jungle bongos in The Yard, an oriental tune in
+ * the Sand Pit and slow, echoing ambience in the Frost Cave.
  *
  * Screen: tile rows 0-3 are the HUD, rows 4-29 hold a 16 x 13 grid of
  * 16 x 16 pixel cells (one NES attribute quadrant per cell).
@@ -64,7 +67,7 @@ static u8 vlen;
 #define MAX_FLAMES  80
 #define MAX_SPEEDUPS 4
 #define MAX_FIRE    9
-#define ROUND_SECS  60
+#define ROUND_SECS  180         /* three minutes per level */
 #define STRESS_SECS 20
 
 /* RAM is tight (2 KB), so each cell packs several fields into one byte:
@@ -217,49 +220,147 @@ static void vtext(u8 x, u8 y, const char* s) {
   while (*s) { vram_buf[vlen++] = FONT_MAP[(u8)(*s) - 32]; ++s; }
 }
 
-/* ---------- sound ---------- */
-static u8 boom_t;             /* frames the noise channel is busy with an explosion */
+/* ---------- sound effects (pulse 2 and noise) ---------- */
+static u8 boom_t;         /* frames left of an explosion; drums wait for it */
 static void sfx_place(void) { APU[4] = 0x86; APU[5] = 0x00; APU[6] = 0xE0; APU[7] = 0x08; }
 static void sfx_pickup(void) { APU[4] = 0x45; APU[5] = 0xB9; APU[6] = 0xC0; APU[7] = 0x08; }
 static void sfx_die(void) { APU[4] = 0x0A; APU[5] = 0x8B; APU[6] = 0x40; APU[7] = 0x09; }
 /* envelope decay over about half a second; the length counter must not cut it first */
-static void sfx_boom(void) { APU[12] = 0x08; APU[14] = 0x0D; APU[15] = 0x08; boom_t = 30; }
-static void sfx_tick(void) { if (!boom_t) { APU[12] = 0x14; APU[14] = 0x03; APU[15] = 0x18; } }
+static void sfx_boom(void) { APU[12] = 0x08; APU[14] = 0x0D; APU[15] = 0x08; boom_t = 40; }
 
-/* music: square lead + triangle bass, a 16th note per step */
-static const u8 LEAD[64] = {
-  69,0,72,0,76,0,74,72, 69,0,67,0,69,0,0,0, 72,0,76,0,79,0,77,76, 74,0,72,0,74,0,0,0,
-  69,0,72,0,76,0,79,0, 81,0,79,76,74,0,72,0, 74,0,72,0,69,0,67,0, 69,0,0,0,0,0,0,0 };
-static const u8 BASS[16] = { 45,52,41,48,43,50,45,52, 45,52,41,48,43,50,45,45 };
-static u8 mus_on, mus_step, mus_tick, lead_vol;
+/* ---------- music ----------
+   One song per level, each a 64-step loop on a 16th-note grid.
+   LEAD (pulse 1) and TRI (triangle): a MIDI note starts a note, 0 lets the last one
+   ring, 1 cuts it. TRI notes with L added are held until the next note; the rest are
+   short hits (bongos in the jungle song, which also bend down in pitch).
+   DRUM (noise) is a 16-step loop of the drum codes below. */
+#define L 0x80
+#define DUM 1                 /* low drum */
+#define TEK 2                 /* slap */
+#define SHK 3                 /* shaker */
+#define WND 4                 /* wind */
+
+static const u8 LEAD[3][64] = {
+  /* The Yard: marimba-like calls in A minor pentatonic over the bongos */
+  { 81,0,0,79, 0,76,0,0, 79,0,76,0, 74,0,0,0,   76,0,0,74, 0,72,0,0, 74,0,72,0, 69,0,0,0,
+    69,0,72,0, 74,0,76,0, 79,0,0,76, 0,79,81,0, 84,0,0,81, 0,79,0,76, 79,0,76,0, 74,72,69,0 },
+  /* Sand Pit: a reedy tune in D hijaz (D Eb F# G A Bb C) */
+  { 74,0,0,75, 74,0,72,0, 70,0,72,0, 69,0,0,0,  66,0,67,0, 69,0,70,69, 67,0,66,0, 63,0,62,0,
+    62,0,66,0, 67,0,69,0, 70,0,69,70, 72,0,70,69, 67,69,67,66, 63,0,66,0, 62,0,0,0, 0,0,1,0 },
+  /* Frost Cave: sparse bells in E minor, each answered by its own echo */
+  { 76,0,0,0, 83,0,0,0, 81,0,0,0, 0,0,0,0,      79,0,0,0, 78,0,0,0, 74,0,0,0, 0,0,0,0,
+    76,0,0,0, 83,0,0,0, 88,0,0,0, 86,0,0,0,     83,0,0,0, 81,0,79,0, 78,0,0,0, 0,0,0,0 },
+};
+static const u8 TRI[3][64] = {
+  /* bongos: low log drum (45), high (67) and low (60) bongo, a fill at the end */
+  { 45,0,67,67, 60,0,67,0, 45,0,67,60, 67,60,60,0,  45,0,67,67, 60,0,67,0, 45,67,60,67, 60,67,60,60,
+    45,0,67,67, 60,0,67,0, 45,0,67,60, 67,60,60,0,  45,67,67,60, 60,67,60,67, 72,72,67,67, 60,60,45,45 },
+  /* a droning D bass that leans on Eb */
+  { 38+L,0,0,0, 0,0,38+L,0, 0,0,38+L,0, 0,0,0,0,  39+L,0,0,0, 0,0,39+L,0, 0,0,38+L,0, 0,0,0,0,
+    38+L,0,0,0, 0,0,38+L,0, 0,0,38+L,0, 0,0,0,0,  43+L,0,0,0, 0,0,39+L,0, 0,0,38+L,0, 0,0,38+L,0 },
+  /* long, slow bass notes: E B C G E B D A */
+  { 40+L,0,0,0, 0,0,0,0, 47+L,0,0,0, 0,0,0,0,  36+L,0,0,0, 0,0,0,0, 43+L,0,0,0, 0,0,0,0,
+    40+L,0,0,0, 0,0,0,0, 47+L,0,0,0, 0,0,0,0,  38+L,0,0,0, 0,0,0,0, 45+L,0,0,0, 0,0,0,0 },
+};
+static const u8 DRUM[3][16] = {
+  { DUM,SHK,SHK,SHK, TEK,SHK,DUM,SHK, DUM,SHK,SHK,DUM, TEK,SHK,SHK,SHK },   /* jungle groove */
+  { DUM,0,TEK,0, SHK,0,TEK,0, DUM,0,SHK,0, TEK,0,SHK,0 },                   /* maqsum: dum tek - tek dum - tek - */
+  { WND,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0 },                                 /* a breath of wind */
+};
+/* per song:              Yard  Sand  Frost */
+static const u8 SONG_RATE[3]  = { 7,    8,    11 };     /* frames per step */
+static const u8 LEAD_DUTY[3]  = { 0x40, 0x00, 0x80 };   /* 25%, 12.5% (reedy), 50% */
+static const u8 LEAD_VOL[3]   = { 11,   9,    7 };
+static const u8 LEAD_DECAY[3] = { 1,    5,    6 };      /* frames per volume step */
+static const u8 LEAD_FLOOR[3] = { 0,    4,    0 };
+static const u8 TRI_SHORT[3]  = { 16,   24,   24 };     /* short-note length, 1/240 s */
+static const u8 TRI_BEND[3]   = { 7,    0,    0 };      /* bongo pitch drop per frame */
+static const u8 VIBRATO[3]    = { 0,    1,    0 };
+static const u8 ECHO[3]       = { 0,    0,    1 };
+/* drum kit:                 -    DUM   TEK   SHK   WND */
+static const u8 DRUM_PER[5] = { 0, 0x0C, 0x04, 0x00, 0x06 };
+static const u8 DRUM_VOL[5] = { 0, 12,   9,    3,    3 };
+static const u8 DRUM_DEC[5] = { 0, 1,    1,    1,    16 };
+
+static u8 mus_on, mus_step, mus_tick;
+static u8 lead_vol, lead_tick, lead_age;
+static u16 lead_per, tri_per;
+static u8 tri_bend;
+static u8 noise_vol, noise_dec, noise_tick;
+static void sfx_tick(void) {
+  if (boom_t) return;
+  noise_vol = 5; noise_dec = 1; noise_tick = 0;
+  APU[12] = 0x35; APU[14] = 0x03; APU[15] = 0x08;
+}
+
+static void play_lead(u8 n, u8 vol) {
+  lead_per = PULSE_PERIOD[n - NOTE_LO];
+  lead_vol = vol; lead_tick = 0; lead_age = 0;
+  APU[0] = LEAD_DUTY[level] | 0x30 | vol; APU[1] = 0x08;
+  APU[2] = lead_per & 0xFF; APU[3] = (lead_per >> 8) | 0x08;
+}
 
 static void music_frame(void) {
-  u8 n, shift, rate;
+  u8 n, s, rate, shift, lo;
   if (boom_t) --boom_t;
   if (!mus_on) return;
-  if (lead_vol) { --lead_vol; APU[0] = 0xB0 | (lead_vol >> 1); }
-  shift = level == 1 ? 2 : level == 2 ? 5 : 0;
-  rate = 7 - level;
-  if (secs <= STRESS_SECS) { ++shift; rate -= 2; }
+
+  /* lead: fade, and a gentle vibrato on held notes in the Sand Pit */
+  if (lead_vol) {
+    if (++lead_tick >= LEAD_DECAY[level]) { lead_tick = 0; if (lead_vol > LEAD_FLOOR[level]) --lead_vol; }
+    ++lead_age;
+    APU[0] = LEAD_DUTY[level] | 0x30 | lead_vol;
+    lo = lead_per & 0xFF;
+    if (VIBRATO[level] && lead_age > 10 && lo > 4 && lo < 250) APU[2] = (lead_age & 8) ? lo + 3 : lo - 3;
+  }
+  /* bongo pitch bend */
+  if (tri_bend) {
+    --tri_bend;
+    n = tri_per >> 8;
+    tri_per += TRI_BEND[level];
+    APU[10] = tri_per & 0xFF;
+    if ((tri_per >> 8) != n) APU[11] = (tri_per >> 8) | 0x08;
+  }
+  /* drum fade */
+  if (noise_vol && !boom_t) {
+    if (++noise_tick >= noise_dec) { noise_tick = 0; --noise_vol; }
+    APU[12] = 0x30 | noise_vol;
+  }
+
+  rate = SONG_RATE[level]; shift = 0;
+  if (secs <= STRESS_SECS) { shift = 1; rate -= 2; }    /* faster and a step higher when time is short */
   if (++mus_tick < rate) return;
   mus_tick = 0;
-  n = LEAD[mus_step & 63];
-  if (n) {
-    n = n + shift - NOTE_LO;
-    lead_vol = 10;
-    APU[0] = 0xB5; APU[1] = 0x08;
-    APU[2] = PULSE_PERIOD[n] & 0xFF; APU[3] = (PULSE_PERIOD[n] >> 8) | 0x08;
+  s = mus_step & 63;
+
+  n = LEAD[level][s];
+  if (n == 1) { lead_vol = 0; APU[0] = 0x30; }
+  else if (n) play_lead(n + shift, LEAD_VOL[level]);
+  else if (ECHO[level] && (n = LEAD[level][(s - 2) & 63]) > 1) play_lead(n + shift, 3);
+
+  n = TRI[level][s];
+  if (n == 1) { APU[8] = 0x80; APU[11] = 0; tri_bend = 0; }
+  else if (n) {
+    tri_per = TRI_PERIOD[(n & 0x7F) + shift - NOTE_LO];
+    APU[8] = (n & L) ? 0xFF : TRI_SHORT[level];
+    APU[10] = tri_per & 0xFF; APU[11] = (tri_per >> 8) | 0x08;
+    tri_bend = (n & L) ? 0 : (TRI_BEND[level] ? 6 : 0);
   }
-  if ((mus_step & 1) == 0 || secs <= STRESS_SECS) {
-    n = BASS[(mus_step >> 1) & 15] + shift - NOTE_LO;
-    if (mus_step & 1) n += 12;                 /* driving off-beat when time is short */
-    APU[8] = 0x18;
-    APU[10] = TRI_PERIOD[n] & 0xFF; APU[11] = (TRI_PERIOD[n] >> 8) | 0x08;
+
+  n = DRUM[level][s & 15];
+  if (n && !boom_t) {
+    noise_vol = DRUM_VOL[n]; noise_dec = DRUM_DEC[n]; noise_tick = 0;
+    APU[12] = 0x30 | noise_vol; APU[14] = DRUM_PER[n]; APU[15] = 0x08;
   }
-  if (secs <= STRESS_SECS && (mus_step & 3) == 0) sfx_tick();   /* clock tick on every beat */
+  if (secs <= STRESS_SECS && (s & 3) == 2) sfx_tick();   /* clock tick between the beats */
   ++mus_step;
 }
-static void music_stop(void) { mus_on = 0; APU[0] = 0x30; APU[8] = 0x80; APU[11] = 0; }
+static void music_start(void) { mus_on = 1; mus_step = 0; mus_tick = 0; }
+static void music_stop(void) {
+  mus_on = 0; lead_vol = 0; tri_bend = 0; noise_vol = 0;
+  APU[0] = 0x30; APU[8] = 0x80; APU[11] = 0;
+  if (!boom_t) APU[12] = 0x30;
+}
 
 /* win jingle on pulse 1, played while a message screen is up */
 static const u8 WIN_TUNE[6] = { 67, 72, 76, 79, 76, 79 };
@@ -681,7 +782,7 @@ static void start_level(u8 keep) {
   hud_time(); hud_stats(0);
   if (nplayers == 2) hud_stats(1);
   if (malive[0]) hud_krax();
-  mus_on = 1; mus_step = 0; mus_tick = 0;
+  music_start();
   ppu_on();
 }
 
@@ -750,7 +851,7 @@ static u8 play_level(void) {
     }
 
 #ifdef TEST_CLEAR
-    if (secs == 58) { malive[0] = malive[1] = 0; }   /* test build only: skip to the next level */
+    if (secs == ROUND_SECS - 2) { malive[0] = malive[1] = 0; }   /* test build only: skip to the next level */
 #endif
     /* the clock: at zero the round is lost (1 player) or a draw (2 players) */
     if ((palive[0] || palive[1]) && --subsec == 0) {
