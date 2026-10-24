@@ -36,6 +36,7 @@ I webbversionens meny väljer du utseende innan du startar. Valet sparas till n�
 
 - **Classic mode:** originalet med PICO-8-cartens pixelgrafik och chiptune-musiken.
 - **New enhanced mode:** samma regler i ny grafik, sedd snett ovanifrån med lite isometrisk vinkel. Blocken är tredimensionella, och det finns skuggor, glödande eld, partiklar och skakande skärm vid explosioner. Varje bana har eget tema: grönska i The Yard, sandsten i Sand Pit och is och snö i Frost Cave.
+  - **Luta banan:** dra med fingret (eller musen på dator) på spelplanen för att ändra vinkeln. Upp och ner gör att du ser banan brantare uppifrån eller mer från sidan, vänster och höger ändrar snedheten. Dubbeltryck eller dubbelklicka för att återställa. Vinkeln sparas till nästa gång, och knapparna på mobilen fungerar som vanligt medan du drar.
   - **Nya monster:** slemklumpar som vandrar runt, skalbaggar som rusar mot dig när de ser dig längs en gång, och irrbloss som svävar efter dig. The Yard har en slemklump och en skalbagge, Sand Pit en skalbagge och ett irrbloss, och Frost Cave alla tre.
   - **Ny musik:** modern instrumental musik med syntetiserade trummor, bas, synthmattor och eko. Tropical house i The Yard, ökeninspirerad deep house med darbuka och oud-liknande melodi i Sand Pit, och lugn ambient synthwave med klockarpeggio i Frost Cave.
 
