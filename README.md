@@ -24,6 +24,15 @@ Spelare 1 använder handkontroll 1 och har den vita dräkten. Spelare 2 använde
 
 `web/bomb-yard.html` är originalspelet för webbläsaren, som hela spelet i en enda fil. Öppna den i en webbläsare på dator eller mobil. Den har tvåspelarläge på samma telefon med knappar för båda, en större bana på 16×16 rutor och knappar på skärmen för mobilen. Musiken är samma låtar som i NES-versionen, och i tvåspelarläget byts banan varje runda precis som på NES.
 
+### Classic mode och New enhanced mode
+
+I webbversionens meny väljer du utseende innan du startar. Valet sparas till nästa gång.
+
+- **Classic mode:** originalet med PICO-8-cartens pixelgrafik och chiptune-musiken.
+- **New enhanced mode:** samma regler i ny grafik, sedd snett ovanifrån med lite isometrisk vinkel. Blocken är tredimensionella, och det finns skuggor, glödande eld, partiklar och skakande skärm vid explosioner. Varje bana har eget tema: grönska i The Yard, sandsten i Sand Pit och is och snö i Frost Cave.
+  - **Nya monster:** slemklumpar som vandrar runt, skalbaggar som rusar mot dig när de ser dig längs en gång, och irrbloss som svävar efter dig. The Yard har en slemklump och en skalbagge, Sand Pit en skalbagge och ett irrbloss, och Frost Cave alla tre.
+  - **Ny musik:** modern instrumental musik med syntetiserade trummor, bas, synthmattor och eko. Tropical house i The Yard, ökeninspirerad deep house med darbuka och oud-liknande melodi i Sand Pit, och lugn ambient synthwave med klockarpeggio i Frost Cave.
+
 ## Bygga
 
 Du behöver [cc65](https://cc65.github.io) och Python 3.
