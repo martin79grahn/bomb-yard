@@ -7,6 +7,7 @@ Pattern table 0 ($0000) holds background tiles:
   $40-$7F  the cart's map tiles, sprite-sheet rows 4-7, at the same index as in PICO-8
 Pattern table 1 ($1000) holds sprites:
   $00-$2F  the bomber frames (sheet rows 0-2)
+  $30,$31  confetti specks
   $4E,$4F,$5E,$5F  the creature ("Krax") monster
 
 Each PICO-8 colour is mapped to one of the NES's 4 palette slots per tile group,
@@ -97,8 +98,10 @@ FONT = {
  '!': ["  #  ","  #  ","  #  ","  #  ","  #  ","     ","  #  "],
  '-': ["     ","     ","     "," ### ","     ","     ","     "],
  '.': ["     ","     ","     ","     ","     "," ##  "," ##  "],
+ '>': [" #   ","  #  ","   # ","    #","   # ","  #  "," #   "],
+ '/': ["    #","   # ","   # ","  #  "," #   "," #   ","#    "],
 }
-FONT_ORDER = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:!-."
+FONT_ORDER = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:!-.>/"
 
 
 def font_tile(rows):
@@ -121,6 +124,9 @@ for t in list(range(0x00, 0x0E)) + list(range(0x10, 0x1E)) + list(range(0x20, 0x
     spr[t] = encode(mapped(t, HERO, 1))
 for t in (0x4E, 0x4F, 0x5E, 0x5F):
     spr[t] = encode(mapped(t, KRAX, 1))
+# confetti for the victory screens: a 3 x 3 speck in colour 2 ($30) or colour 3 ($31)
+for t, v in ((0x30, 2), (0x31, 3)):
+    spr[t] = encode([[v if x < 3 and y < 3 else 0 for x in range(8)] for y in range(8)])
 
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "chr.bin")
 open(out, "wb").write(b"".join(bg) + b"".join(spr))

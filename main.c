@@ -1,8 +1,9 @@
 /*
  * Bomb Yard for the NES (NROM, cc65)
  *
- * A port of the browser game: one player against two Krax monsters across
- * three levels, a one-minute timer, power-ups and background music.
+ * A port of the browser game. 1 player: clear the two Krax monsters across
+ * three levels, a minute on the clock each. 2 players: blast each other on
+ * a random yard, first to 3 rounds wins (second player on controller 2).
  *
  * Screen: tile rows 0-3 are the HUD, rows 4-29 hold a 16 x 13 grid of
  * 16 x 16 pixel cells (one NES attribute quadrant per cell).
@@ -24,6 +25,7 @@ typedef unsigned int u16;
 #define PPUDATA   (*(volatile u8*)0x2007)
 #define APU       ((volatile u8*)0x4000)
 #define JOY1      (*(volatile u8*)0x4016)
+#define JOY2      (*(volatile u8*)0x4017)
 #define OAM       ((u8*)0x0200)
 
 #define BTN_A      0x80
@@ -61,6 +63,7 @@ static u8 vlen;
 #define MAX_BOMBS   7
 #define MAX_FLAMES  80
 #define MAX_SPEEDUPS 4
+#define MAX_FIRE    9
 #define ROUND_SECS  60
 #define STRESS_SECS 20
 
@@ -83,12 +86,24 @@ static u8 flist[MAX_FLAMES];
 static u8 fcount;
 static u8 attr[64];
 
-static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_BOMBS];
+static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_BOMBS], b_owner[MAX_BOMBS];
 
-/* player */
-static u8 px, py, pcx, pcy, pmoving, pdir, pleft, pfrac, pspeed, pups, pfire, pbombs, pactive;
-static s8 pdx, pdy;
-static u8 palive, pdeath, panim, pframe, ppending;
+/* players: index 0 is controller 1, index 1 is controller 2 (2-player mode only) */
+#define NPL 2
+static u8 px[NPL], py[NPL], pcx[NPL], pcy[NPL], pmoving[NPL], pdir[NPL], pleft[NPL], pfrac[NPL];
+static u8 pspeed[NPL], pups[NPL], pfire[NPL], pbombs[NPL], pactive[NPL];
+static s8 pdx[NPL], pdy[NPL];
+static u8 palive[NPL], pdeath[NPL], panim[NPL], pframe[NPL], ppending[NPL], pburned[NPL];
+static u8 pl;                 /* the player being updated */
+static u8 nplayers;           /* 1 = vs the Krax, 2 = versus */
+static u8 wins[NPL];
+
+/* 2-player options, kept from match to match */
+static u8 opt_level;          /* arena look and Krax speed, 0..2 */
+static u8 opt_monsters;       /* Krax roam the arena too */
+static u8 opt_wins;           /* index into WIN_CHOICES */
+static const u8 WIN_CHOICES[3] = { 3, 5, 10 };
+static u8 win_target;         /* rounds needed to win the match */
 
 /* monsters */
 #define NMON 2
@@ -98,12 +113,18 @@ static u8 malive[NMON], mdeath[NMON], mwait[NMON], mbob[NMON];
 static u8 mspeed;
 
 static u8 level;              /* 0..2 */
-static u8 debug;              /* debug mode: walk through walls */
-static u8 burned;             /* the player died in a blast */
+static u8 debug;              /* debug mode: walk through walls (1 player) */
 static u8 secs, subsec, time_up;
-static u8 pad, pad_old, pad_new;
+static u8 pad, pad_old, pad_new, pad2, pad2_old, pad2_new;
 static u8 rng = 0x5A, rng2 = 0xC3;
 static u8 i, j, k, t, c;      /* scratch */
+
+/* what play_level() ended with */
+#define R_DIED    0
+#define R_CLEARED 1
+#define R_P1      2
+#define R_P2      3
+#define R_DRAW    4
 
 /* directions: 0 left, 1 right, 2 up, 3 down */
 static const s8 DX[4] = { -1, 1, 0, 0 };
@@ -115,7 +136,8 @@ static const u8 BACK[4] = { 1, 0, 3, 2 };
 static const u8 ANIM_F[4][4] = { {8,10,12,10}, {8,10,12,10}, {4,6,4,6}, {0,2,0,2} };
 static const u8 ANIM_FLIP[4][4] = { {0,0,0,0}, {1,1,1,1}, {0,0,0,1}, {0,0,0,1} };
 
-/* ---------- palettes: background (4 x 4) then sprites (4 x 4), one set per level ---------- */
+/* ---------- palettes: background (4 x 4) then sprites (4 x 4), one set per level ----------
+   sprite palette 0 is player 1 (white), 1 is player 2 (red), 2 the Krax */
 static const u8 PALETTES[3][32] = {
   { 0x2A,0x1A,0x0A,0x30,  0x2A,0x30,0x10,0x00,  0x2A,0x16,0x27,0x38,  0x2A,0x0F,0x30,0x27,
     0x2A,0x0F,0x30,0x16,  0x2A,0x0F,0x16,0x36,  0x2A,0x0F,0x30,0x27,  0x2A,0x0F,0x30,0x27 },
@@ -140,12 +162,14 @@ static void wait_frame(void) {
   vlen = 0;
 }
 
+/* both controllers; pad/pad_new are controller 1, pad2/pad2_new controller 2 */
 static void read_pad(void) {
-  pad_old = pad;
+  pad_old = pad; pad2_old = pad2;
   JOY1 = 1; JOY1 = 0;
-  pad = 0;
-  for (i = 0; i < 8; ++i) pad = (pad << 1) | (JOY1 & 1);
+  pad = 0; pad2 = 0;
+  for (i = 0; i < 8; ++i) { pad = (pad << 1) | (JOY1 & 1); pad2 = (pad2 << 1) | (JOY2 & 1); }
   pad_new = pad & ~pad_old;
+  pad2_new = pad2 & ~pad2_old;
 }
 
 static void ppu_off(void) { ppu_mask = 0; wait_frame(); PPUMASK = 0; }
@@ -153,9 +177,14 @@ static void ppu_on(void) { ppu_ctrl = 0x88; ppu_mask = 0x1E; wait_frame(); }
 
 static void set_addr(u16 a) { PPUSTATUS; PPUADDR = a >> 8; PPUADDR = a & 0xFF; }
 
+/* rendering must be off. Writing in vblank and pointing the PPU back at $0000 afterwards
+   keeps the palette colours from showing up as streaks on screen while they are written */
 static void load_palette(void) {
+  const u8* p = PALETTES[level];
+  wait_frame();
   set_addr(0x3F00);
-  for (i = 0; i < 32; ++i) PPUDATA = PALETTES[level][i];
+  for (i = 0; i < 32; ++i) PPUDATA = p[i];
+  set_addr(0x0000);
 }
 
 /* write text straight to the nametable (rendering must be off) */
@@ -175,6 +204,8 @@ static void clear_screen(void) {
   for (i = 0; i < 64; ++i) { PPUDATA = 0x55; attr[i] = 0x55; }
 }
 
+static void hide_sprites(void) { k = 0; do { OAM[k] = 0xFF; k += 4; } while (k); }
+
 /* queue text into the VRAM buffer (rendering on) */
 static void vtext(u8 x, u8 y, const char* s) {
   u16 a = 0x2000 + (u16)y * 32 + x;
@@ -187,10 +218,13 @@ static void vtext(u8 x, u8 y, const char* s) {
 }
 
 /* ---------- sound ---------- */
+static u8 boom_t;             /* frames the noise channel is busy with an explosion */
 static void sfx_place(void) { APU[4] = 0x86; APU[5] = 0x00; APU[6] = 0xE0; APU[7] = 0x08; }
 static void sfx_pickup(void) { APU[4] = 0x45; APU[5] = 0xB9; APU[6] = 0xC0; APU[7] = 0x08; }
 static void sfx_die(void) { APU[4] = 0x0A; APU[5] = 0x8B; APU[6] = 0x40; APU[7] = 0x09; }
-static void sfx_boom(void) { APU[12] = 0x08; APU[14] = 0x0D; APU[15] = 0x18; }
+/* envelope decay over about half a second; the length counter must not cut it first */
+static void sfx_boom(void) { APU[12] = 0x08; APU[14] = 0x0D; APU[15] = 0x08; boom_t = 30; }
+static void sfx_tick(void) { if (!boom_t) { APU[12] = 0x14; APU[14] = 0x03; APU[15] = 0x18; } }
 
 /* music: square lead + triangle bass, a 16th note per step */
 static const u8 LEAD[64] = {
@@ -201,6 +235,7 @@ static u8 mus_on, mus_step, mus_tick, lead_vol;
 
 static void music_frame(void) {
   u8 n, shift, rate;
+  if (boom_t) --boom_t;
   if (!mus_on) return;
   if (lead_vol) { --lead_vol; APU[0] = 0xB0 | (lead_vol >> 1); }
   shift = level == 1 ? 2 : level == 2 ? 5 : 0;
@@ -221,9 +256,25 @@ static void music_frame(void) {
     APU[8] = 0x18;
     APU[10] = TRI_PERIOD[n] & 0xFF; APU[11] = (TRI_PERIOD[n] >> 8) | 0x08;
   }
+  if (secs <= STRESS_SECS && (mus_step & 3) == 0) sfx_tick();   /* clock tick on every beat */
   ++mus_step;
 }
 static void music_stop(void) { mus_on = 0; APU[0] = 0x30; APU[8] = 0x80; APU[11] = 0; }
+
+/* win jingle on pulse 1, played while a message screen is up */
+static const u8 WIN_TUNE[6] = { 67, 72, 76, 79, 76, 79 };
+static u8 jingle_pos, jingle_tick;   /* jingle_pos 0 = silent */
+static void jingle_frame(void) {
+  u8 n;
+  if (!jingle_pos) return;
+  if (jingle_tick) { --jingle_tick; return; }
+  jingle_tick = 7;
+  if (jingle_pos > sizeof(WIN_TUNE)) { APU[0] = 0x30; jingle_pos = 0; return; }
+  n = WIN_TUNE[jingle_pos - 1] - NOTE_LO;
+  APU[0] = 0xB8; APU[1] = 0x08;
+  APU[2] = PULSE_PERIOD[n] & 0xFF; APU[3] = (PULSE_PERIOD[n] >> 8) | 0x08;
+  ++jingle_pos;
+}
 
 /* ---------- cell drawing ---------- */
 static void mark(u8 ci) {
@@ -282,9 +333,11 @@ static void draw_cell_buffered(u8 ci) {
   vram_buf[vlen++] = attr[a];
 }
 
+/* up to 4 cells a frame (15 bytes each), fewer when HUD text already used the buffer,
+   so the NMI copy always fits in vblank */
 static void flush_dirty(void) {
   u8 n = 0;
-  while (dq_head != dq_tail && n < 4) {
+  while (dq_head != dq_tail && n < 4 && vlen <= 52) {
     k = dirtyq[dq_head];
     dq_head = (dq_head + 1) & (DQ - 1);
     flame[k] &= 0x7F;
@@ -317,6 +370,46 @@ static void build_map(void) {
 
 static u8 walkable(u8 ci) { return TYPE(ci) == FLOOR && !BOMB(ci); }
 
+/* write v (0..99) at s as 1 or 2 digits, return the position after it */
+static char* put_num(char* s, u8 v) {
+  if (v >= 10) { *s++ = '0' + v / 10; v %= 10; }
+  *s++ = '0' + v;
+  return s;
+}
+
+/* ---------- HUD ----------
+   1 player:  row 1 level and DEBUG, row 2 stats, clock and Krax left
+   2 players: row 1 both players' stats (and Krax left), row 2 rounds won and the clock */
+static char hud[12];
+static void hud_time(void) {
+  u8 show = !(secs <= 10 && (frame_count & 16));
+  hud[0] = show ? '0' + secs / 60 : ' ';
+  hud[1] = show ? ':' : ' ';
+  hud[2] = show ? '0' + (secs % 60) / 10 : ' ';
+  hud[3] = show ? '0' + secs % 10 : ' ';
+  hud[4] = 0;
+  vtext(14, 2, hud);
+}
+static void hud_krax(void) {
+  hud[0] = 'K'; hud[1] = 'R'; hud[2] = 'A'; hud[3] = 'X'; hud[4] = ' ';
+  hud[5] = '0' + (malive[0] ? 1 : 0) + (malive[1] ? 1 : 0); hud[6] = 0;
+  vtext(nplayers == 2 ? 13 : 25, nplayers == 2 ? 1 : 2, hud);
+}
+/* "B1 F1 S0": bombs, blast range (fire) and speed-ups of player p */
+static void hud_stats(u8 p) {
+  hud[0] = 'B'; hud[1] = '0' + pbombs[p]; hud[2] = ' ';
+  hud[3] = 'F'; hud[4] = '0' + pfire[p]; hud[5] = ' ';
+  hud[6] = 'S'; hud[7] = '0' + pups[p]; hud[8] = 0;
+  vtext(p ? 23 : 1, nplayers == 2 ? 1 : 2, hud);
+}
+/* "P1 2/5": rounds won of rounds needed (rendering off) */
+static void hud_wins(u8 p) {
+  char* s = hud;
+  *s++ = 'P'; *s++ = '1' + p; *s++ = ' ';
+  s = put_num(s, wins[p]); *s++ = '/'; s = put_num(s, win_target); *s = 0;
+  put_text(p ? 23 : 1, 2, hud);
+}
+
 /* ---------- bombs and flames ---------- */
 static void add_flame(u8 ci) {
   if (!FLAME(ci)) { if (fcount < MAX_FLAMES) flist[fcount++] = ci; else return; }
@@ -324,8 +417,6 @@ static void add_flame(u8 ci) {
   SET_ITEM(ci, 0);
   mark(ci);
 }
-
-static void explode(u8 b);
 
 static void blast_line(u8 start, u8 range, u8 d) {
   u8 ci = start, n;
@@ -340,29 +431,31 @@ static void blast_line(u8 start, u8 range, u8 d) {
       return;
     }
     add_flame(ci);
-    if (BOMB(ci)) explode(BOMB(ci) - 1);
+    /* chain reaction: the other bomb goes off on its next fuse tick (this frame or the next).
+       No recursion, because static locals would be overwritten by a nested call. */
+    if (BOMB(ci)) b_fuse[BOMB(ci) - 1] = 1;
   }
 }
 
 static void explode(u8 b) {
-  u8 ci = b_cell[b], r = b_range[b], d;
+  u8 ci = b_cell[b], r = b_range[b], d, o = b_owner[b];
   if (!b_used[b]) return;
   b_used[b] = 0;
   SET_BOMB(ci, 0);
-  if (pactive) --pactive;
+  if (pactive[o]) --pactive[o];
   sfx_boom();
   add_flame(ci);
   for (d = 0; d < 4; ++d) blast_line(ci, r, d);
 }
 
 static void place_bomb(void) {
-  u8 ci = pcy * GW + pcx;
-  if (!palive || pactive >= pbombs || BOMB(ci)) return;
+  u8 ci = pcy[pl] * GW + pcx[pl];
+  if (!palive[pl] || pactive[pl] >= pbombs[pl] || BOMB(ci)) return;
   for (k = 0; k < MAX_BOMBS; ++k) if (!b_used[k]) break;
   if (k == MAX_BOMBS) return;
-  b_used[k] = 1; b_cell[k] = ci; b_fuse[k] = FUSE; b_range[k] = pfire;
+  b_used[k] = 1; b_cell[k] = ci; b_fuse[k] = FUSE; b_range[k] = pfire[pl]; b_owner[k] = pl;
   SET_BOMB(ci, k + 1);
-  ++pactive;
+  ++pactive[pl];
   sfx_place();
   mark(ci);
 }
@@ -379,56 +472,63 @@ static void update_bombs(void) {
   }
 }
 
-/* ---------- player ---------- */
+/* ---------- players ---------- */
 static u8 want_dir(void) {
-  if (pad & BTN_LEFT) return 0;
-  if (pad & BTN_RIGHT) return 1;
-  if (pad & BTN_UP) return 2;
-  if (pad & BTN_DOWN) return 3;
+  u8 p = pl ? pad2 : pad;
+  if (p & BTN_LEFT) return 0;
+  if (p & BTN_RIGHT) return 1;
+  if (p & BTN_UP) return 2;
+  if (p & BTN_DOWN) return 3;
   return 0xFF;
 }
 
 static void try_step(u8 d) {
-  u8 ci;
-  if (d == 0xFF) { pframe = 0; panim = 0; return; }
-  pdir = d;
-  ci = pcy * GW + pcx + DSTEP[d];
-  if (walkable(ci) || (debug && pcx + DX[d] >= 1 && pcx + DX[d] <= GW - 2 && pcy + DY[d] >= 1 && pcy + DY[d] <= GH - 2)) { pmoving = 1; pdx = DX[d]; pdy = DY[d]; pleft = 16; }
+  u8 ci, nx, ny;
+  if (d == 0xFF) { pframe[pl] = 0; panim[pl] = 0; return; }
+  pdir[pl] = d;
+  ci = pcy[pl] * GW + pcx[pl] + DSTEP[d];
+  nx = pcx[pl] + DX[d]; ny = pcy[pl] + DY[d];
+  if (walkable(ci) || (debug && nplayers == 1 && nx >= 1 && nx <= GW - 2 && ny >= 1 && ny <= GH - 2)) {
+    pmoving[pl] = 1; pdx[pl] = DX[d]; pdy[pl] = DY[d]; pleft[pl] = 16;
+  }
 }
 
 static void collect(void) {
-  u8 ci = pcy * GW + pcx;
+  u8 ci = pcy[pl] * GW + pcx[pl];
   t = ITEM(ci);
   if (!t) return;
-  if (t == IT_SHOE && pups < MAX_SPEEDUPS) { ++pups; pspeed += 4; }
-  if (t == IT_FIRE) ++pfire;
-  if (t == IT_BOMB) ++pbombs;
+  if (t == IT_SHOE && pups[pl] < MAX_SPEEDUPS) { ++pups[pl]; pspeed[pl] += 4; }
+  if (t == IT_FIRE && pfire[pl] < MAX_FIRE) ++pfire[pl];
+  if (t == IT_BOMB && pbombs[pl] < MAX_BOMBS) ++pbombs[pl];
   SET_ITEM(ci, 0);
   mark(ci);
   sfx_pickup();
+  hud_stats(pl);
 }
 
 static void update_player(void) {
   u8 s;
-  if (!palive) { if (pdeath) --pdeath; return; }
-  if (pad_new & (BTN_A | BTN_B)) ppending = 1;
-  if (!pmoving) {
-    if (ppending) { place_bomb(); ppending = 0; }
+  if (!palive[pl]) { if (pdeath[pl]) --pdeath[pl]; return; }
+  if ((pl ? pad2_new : pad_new) & (BTN_A | BTN_B)) ppending[pl] = 1;
+  if (!pmoving[pl]) {
+    if (ppending[pl]) { place_bomb(); ppending[pl] = 0; }
     try_step(want_dir());
   }
-  if (pmoving) {
-    pfrac += pspeed; s = pfrac >> 4; pfrac &= 15;
-    if (s > pleft) s = pleft;
-    px += pdx * (s8)s; py += pdy * (s8)s; pleft -= s;
-    if (++panim >= 8) { panim = 0; pframe = (pframe + 1) & 3; }
-    if (pleft == 0) {
-      pmoving = 0; pcx = px >> 4; pcy = py >> 4;
+  if (pmoving[pl]) {
+    pfrac[pl] += pspeed[pl]; s = pfrac[pl] >> 4; pfrac[pl] &= 15;
+    if (s > pleft[pl]) s = pleft[pl];
+    px[pl] += pdx[pl] * (s8)s; py[pl] += pdy[pl] * (s8)s; pleft[pl] -= s;
+    if (++panim[pl] >= 8) { panim[pl] = 0; pframe[pl] = (pframe[pl] + 1) & 3; }
+    if (pleft[pl] == 0) {
+      pmoving[pl] = 0; pcx[pl] = px[pl] >> 4; pcy[pl] = py[pl] >> 4;
       collect();
-      if (ppending) { place_bomb(); ppending = 0; }
+      if (ppending[pl]) { place_bomb(); ppending[pl] = 0; }
       try_step(want_dir());
     }
   }
 }
+
+static void kill_player(u8 p) { palive[p] = 0; pdeath[p] = 60; sfx_die(); }
 
 /* ---------- monsters ---------- */
 static u8 monster_pick(u8 m) {
@@ -473,20 +573,21 @@ static void spr(u8 x, u8 y, u8 tile, u8 a) {
 }
 
 static void draw_sprites(void) {
-  u8 f, fl, x, y, a, m;
+  u8 f, fl, x, y, a, m, p;
   oi = 0;
-  if (palive || (pdeath && (pdeath & 4))) {
-    f = ANIM_F[pdir][pmoving ? pframe : 0];
-    fl = ANIM_FLIP[pdir][pmoving ? pframe : 0];
-    x = px; y = py + ARENA_Y - 8;
-    a = fl ? 0x40 : 0x00;
+  for (p = 0; p < nplayers; ++p) {
+    if (!palive[p] && !(pdeath[p] & 4)) continue;
+    f = ANIM_F[pdir[p]][pmoving[p] ? pframe[p] : 0];
+    fl = ANIM_FLIP[pdir[p]][pmoving[p] ? pframe[p] : 0];
+    x = px[p]; y = py[p] + ARENA_Y - 8;
+    a = p | (fl ? 0x40 : 0x00);            /* palette 0 white, palette 1 red */
     for (j = 0; j < 3; ++j) {
       spr(x, y + j * 8, f + j * 16 + (fl ? 1 : 0), a);
       spr(x + 8, y + j * 8, f + j * 16 + (fl ? 0 : 1), a);
     }
   }
   for (m = 0; m < NMON; ++m) {
-    if (!malive[m] && !(mdeath[m] && (mdeath[m] & 4))) continue;
+    if (!malive[m] && !(mdeath[m] & 4)) continue;
     x = mx[m]; y = my[m] + ARENA_Y - ((mmoving[m] && (mbob[m] & 8)) ? 1 : 0);
     fl = mdir[m] == 1;
     a = 0x02 | (fl ? 0x40 : 0);
@@ -496,28 +597,26 @@ static void draw_sprites(void) {
   do { OAM[oi] = 0xFF; oi += 4; } while (oi);
 }
 
-/* ---------- HUD ---------- */
-static char hud[12];
-static void hud_level(void) {
-  hud[0] = 'L'; hud[1] = 'E'; hud[2] = 'V'; hud[3] = 'E'; hud[4] = 'L'; hud[5] = ' ';
-  hud[6] = '1' + level; hud[7] = 0;
+/* ---------- screens ---------- */
+static u8 confetti;           /* falling confetti on the next message screen */
+
+static void confetti_init(void) {
+  for (k = 0; k < 32; ++k) {
+    OAM[k * 4] = rand8() % 232;
+    OAM[k * 4 + 1] = 0x30 + (k & 1);
+    OAM[k * 4 + 2] = (k >> 1) & 3;
+    OAM[k * 4 + 3] = rand8();
+  }
 }
-static void hud_time(void) {
-  u8 show = !(secs <= 10 && (frame_count & 16));
-  hud[0] = show ? '0' + secs / 60 : ' ';
-  hud[1] = show ? ':' : ' ';
-  hud[2] = show ? '0' + (secs % 60) / 10 : ' ';
-  hud[3] = show ? '0' + secs % 10 : ' ';
-  hud[4] = 0;
-  vtext(14, 2, hud);
-}
-static void hud_krax(void) {
-  hud[0] = 'K'; hud[1] = 'R'; hud[2] = 'A'; hud[3] = 'X'; hud[4] = ' ';
-  hud[5] = '0' + (malive[0] ? 1 : 0) + (malive[1] ? 1 : 0); hud[6] = 0;
-  vtext(24, 2, hud);
+static void confetti_frame(void) {
+  for (k = 0; k < 32; ++k) {
+    c = k * 4;
+    OAM[c] += 1 + (k & 1);
+    if (OAM[c] >= 232) OAM[c] = 0;
+    if ((frame_count & 3) == 0) OAM[c + 3] += (k & 2) ? 1 : 0xFF;
+  }
 }
 
-/* ---------- screens ---------- */
 static void message_screen(const char* a, const char* b, const char* c2, u8 frames) {
   ppu_off();
   music_stop();
@@ -525,16 +624,27 @@ static void message_screen(const char* a, const char* b, const char* c2, u8 fram
   if (a) put_text_centered(11, a);
   if (b) put_text_centered(14, b);
   if (c2) put_text_centered(17, c2);
-  oi = 0; do { OAM[oi] = 0xFF; oi += 4; } while (oi);   /* no sprites on text screens */
+  hide_sprites();
+  if (confetti) confetti_init();
   load_palette();
   ppu_on();
-  pad = 0xFF;
+  pad = 0xFF; pad2 = 0xFF;
   for (;;) {
     wait_frame();
     read_pad();
+    jingle_frame();
+    if (confetti) confetti_frame();
     if (frames) { if (--frames == 0) break; }
-    else if (pad_new & BTN_START) break;
+    else if ((pad_new | pad2_new) & BTN_START) break;
   }
+  confetti = 0;
+}
+
+static void reset_player(u8 p, u8 cx, u8 cy, u8 keep) {
+  pcx[p] = cx; pcy[p] = cy; px[p] = cx * 16; py[p] = cy * 16;
+  pmoving[p] = 0; pdir[p] = 3; pframe[p] = 0; panim[p] = 0; pfrac[p] = 0;
+  palive[p] = 1; pdeath[p] = 0; pactive[p] = 0; ppending[p] = 0; pburned[p] = 0;
+  if (!keep) { pspeed[p] = 16; pups[p] = 0; pfire[p] = 1; pbombs[p] = 1; }
 }
 
 static void start_level(u8 keep) {
@@ -545,92 +655,234 @@ static void start_level(u8 keep) {
   for (k = 0; k < CELLS; ++k) draw_cell_direct(k);
   set_addr(0x23C0);
   for (k = 0; k < 64; ++k) PPUDATA = attr[k];
-  hud_level();
-  put_text(2, 2, hud);
+
+  reset_player(0, 1, 1, keep);
+  palive[1] = 0; pdeath[1] = 0;
+  if (nplayers == 2) {
+    reset_player(1, GW - 2, GH - 2, 0);
+    hud_wins(0); hud_wins(1);
+  } else {
+    put_text(1, 1, "LEVEL");
+    hud[0] = '1' + level; hud[1] = 0; put_text(7, 1, hud);
+    if (debug) put_text(26, 1, "DEBUG");
+  }
   load_palette();
 
-  pcx = 1; pcy = 1; px = 16; py = 16; pmoving = 0; pdir = 3; pframe = 0; panim = 0; pfrac = 0;
-  palive = 1; pdeath = 0; pactive = 0; ppending = 0; burned = 0;
-  if (!keep) { pspeed = 16; pups = 0; pfire = 1; pbombs = 1; }
   mspeed = MONSTER_SPEED[level];
   for (m = 0; m < NMON; ++m) {
-    mcx[m] = GW - 2; mcy[m] = m ? 1 : GH - 2;
+    /* 1 player: the two far corners. 2 players: the two corners nobody starts in */
+    mcx[m] = (nplayers == 2 && !m) ? 1 : GW - 2; mcy[m] = m ? 1 : GH - 2;
     mx[m] = mcx[m] * 16; my[m] = mcy[m] * 16;
-    mmoving[m] = 0; mdir[m] = 0; mfrac[m] = 0; malive[m] = 1; mdeath[m] = 0; mwait[m] = 30; mbob[m] = 0;
+    mmoving[m] = 0; mdir[m] = 0; mfrac[m] = 0; mdeath[m] = 0; mwait[m] = 30; mbob[m] = 0;
+    malive[m] = nplayers == 1 || opt_monsters;
   }
   secs = ROUND_SECS; subsec = 60; time_up = 0;
   draw_sprites();
-  hud_time(); hud_krax();
+  hud_time(); hud_stats(0);
+  if (nplayers == 2) hud_stats(1);
+  if (malive[0]) hud_krax();
   mus_on = 1; mus_step = 0; mus_tick = 0;
   ppu_on();
 }
 
-/* title: START begins, SELECT toggles debug mode */
+/* title: up/down picks 1 or 2 players, SELECT toggles debug mode, START begins */
+static void title_draw_choice(void) {
+  vtext(10, 13, nplayers == 1 ? ">" : " ");
+  vtext(10, 15, nplayers == 2 ? ">" : " ");
+  vtext(4, 19, nplayers == 1 ? " CLEAR 3 LEVELS OF KRAX " : "   BLAST YOUR FRIEND!   ");
+}
 static void title_screen(void) {
   ppu_off();
   music_stop();
   clear_screen();
-  put_text_centered(9, "BOMB YARD");
-  put_text_centered(13, "PRESS START");
-  put_text_centered(16, "CLEAR 3 LEVELS OF KRAX");
+  put_text_centered(8, "BOMB YARD");
+  put_text(12, 13, "1 PLAYER");
+  put_text(12, 15, "2 PLAYERS");
   put_text_centered(22, "SELECT: DEBUG MODE");
-  oi = 0; do { OAM[oi] = 0xFF; oi += 4; } while (oi);
+  put_text_centered(26, "PRESS START");
+  hide_sprites();
   load_palette();
+  if (!nplayers) nplayers = 1;
+  title_draw_choice();
+  if (debug) vtext(11, 24, "DEBUG ON");
   ppu_on();
-  pad = 0xFF;
+  pad = 0xFF; pad2 = 0xFF;
   for (;;) {
     wait_frame();
     read_pad();
     if (pad_new & BTN_START) return;
-    if (pad_new & BTN_SELECT) { debug ^= 1; vtext(11, 24, debug ? "DEBUG ON " : "         "); }
+    if (pad_new & (BTN_UP | BTN_DOWN)) { nplayers = 3 - nplayers; title_draw_choice(); }
+    if (pad_new & BTN_SELECT) { debug ^= 1; vtext(11, 24, debug ? "DEBUG ON" : "        "); }
   }
 }
 
 /* ---------- main loop ---------- */
-static u8 play_level(void) {   /* returns 1 when cleared, 0 when the player died */
+static u8 play_level(void) {
   u8 m, kx, ky;
   for (;;) {
     wait_frame();
     read_pad();
     music_frame();
 
-    if (pad_new & BTN_START) {           /* pause */
+    if ((pad_new | pad2_new) & BTN_START) {           /* pause */
       music_stop();
-      do { wait_frame(); read_pad(); } while (!(pad_new & BTN_START));
+      do { wait_frame(); read_pad(); } while (!((pad_new | pad2_new) & BTN_START));
       mus_on = 1;
     }
 
-    update_player();
+    for (pl = 0; pl < nplayers; ++pl) update_player();
     for (m = 0; m < NMON; ++m) update_monster(m);
     update_bombs();
 
     /* fire and monster contact */
-    if (palive && FLAME(((py + 8) >> 4) * GW + ((px + 8) >> 4))) { palive = 0; pdeath = 60; burned = 1; sfx_die(); }
+    for (pl = 0; pl < nplayers; ++pl)
+      if (palive[pl] && FLAME(((py[pl] + 8) >> 4) * GW + ((px[pl] + 8) >> 4))) { pburned[pl] = 1; kill_player(pl); }
     for (m = 0; m < NMON; ++m) {
       if (!malive[m]) continue;
       if (FLAME(((my[m] + 8) >> 4) * GW + ((mx[m] + 8) >> 4))) {
         malive[m] = 0; mdeath[m] = 40; sfx_pickup(); hud_krax(); continue;
       }
-      kx = px > mx[m] ? px - mx[m] : mx[m] - px;
-      ky = py > my[m] ? py - my[m] : my[m] - py;
-      if (palive && kx < 11 && ky < 11) { palive = 0; pdeath = 60; sfx_die(); }
+      for (pl = 0; pl < nplayers; ++pl) {
+        kx = px[pl] > mx[m] ? px[pl] - mx[m] : mx[m] - px[pl];
+        ky = py[pl] > my[m] ? py[pl] - my[m] : my[m] - py[pl];
+        if (palive[pl] && kx < 11 && ky < 11) kill_player(pl);
+      }
     }
 
 #ifdef TEST_CLEAR
     if (secs == 58) { malive[0] = malive[1] = 0; }   /* test build only: skip to the next level */
 #endif
-    /* the clock */
-    if (palive && --subsec == 0) {
+    /* the clock: at zero the round is lost (1 player) or a draw (2 players) */
+    if ((palive[0] || palive[1]) && --subsec == 0) {
       subsec = 60;
-      if (--secs == 0) { time_up = 1; palive = 0; pdeath = 60; sfx_die(); }
+      if (--secs == 0) {
+        time_up = 1;
+        for (pl = 0; pl < nplayers; ++pl) if (palive[pl]) kill_player(pl);
+      }
     }
     if (subsec == 60 || secs <= 10) hud_time();
 
     flush_dirty();
     draw_sprites();
 
-    if (!palive && pdeath == 0) return 0;
-    if (palive && !malive[0] && !malive[1] && !mdeath[0] && !mdeath[1]) return 1;
+    if (nplayers == 1) {
+      if (!palive[0] && pdeath[0] == 0) return R_DIED;
+      if (palive[0] && !malive[0] && !malive[1] && !mdeath[0] && !mdeath[1]) return R_CLEARED;
+    } else if (!pdeath[0] && !pdeath[1] && palive[0] + palive[1] <= 1) {
+      return palive[0] ? R_P1 : palive[1] ? R_P2 : R_DRAW;
+    }
+  }
+}
+
+static void solo_game(void) {
+  level = 0;
+  message_screen("LEVEL 1", LEVEL_NAME[0], 0, 100);
+  start_level(0);
+  for (;;) {
+    if (play_level() == R_CLEARED) {
+      jingle_pos = 1; jingle_tick = 0;
+      if (level == 2) {
+        confetti = 1;
+        message_screen("CONGRATULATIONS!", "YOU CLEARED ALL 3 LEVELS", "YOU WIN!   PRESS START", 0);
+        return;
+      }
+      ++level;
+      message_screen("LEVEL CLEARED", "NEXT UP", LEVEL_NAME[level], 150);
+      start_level(1);
+    } else {
+      message_screen(time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : "THE KRAX GOT YOU", "TRY AGAIN", LEVEL_NAME[level], 120);
+      start_level(1);
+    }
+  }
+}
+
+/* ---------- 2 players ---------- */
+static const char* const LEVEL_PAD[3] = { "THE YARD  ", "SAND PIT  ", "FROST CAVE" };
+static u8 opt_row;
+
+/* the level's colours, so the options screen previews the chosen arena */
+static void queue_palette(void) {
+  vram_buf[vlen++] = 32; vram_buf[vlen++] = 0x3F; vram_buf[vlen++] = 0x00;
+  for (i = 0; i < 32; ++i) vram_buf[vlen++] = PALETTES[level][i];
+}
+static void options_draw(void) {
+  vtext(5, 11, opt_row == 0 ? ">" : " ");
+  vtext(5, 13, opt_row == 1 ? ">" : " ");
+  vtext(5, 15, opt_row == 2 ? ">" : " ");
+  vtext(17, 11, LEVEL_PAD[opt_level]);
+  vtext(17, 13, opt_monsters ? "ON " : "OFF");
+  vtext(17, 15, opt_wins == 0 ? "3 " : opt_wins == 1 ? "5 " : "10");
+}
+/* up/down picks a row, left/right (or A) changes it; returns 1 for START, 0 for B (back) */
+static u8 options_screen(void) {
+  ppu_off();
+  music_stop();
+  clear_screen();
+  level = opt_level;
+  put_text_centered(6, "2 PLAYER OPTIONS");
+  put_text(7, 11, "LEVEL");
+  put_text(7, 13, "MONSTERS");
+  put_text(7, 15, "WINS");
+  put_text_centered(19, "UP/DOWN: CHOOSE");
+  put_text_centered(21, "LEFT/RIGHT: CHANGE");
+  put_text_centered(24, "START: PLAY   B: BACK");
+  hide_sprites();
+  load_palette();
+  opt_row = 0;
+  options_draw();
+  ppu_on();
+  pad = 0xFF; pad2 = 0xFF;
+  for (;;) {
+    wait_frame();
+    read_pad();
+    if (pad_new & BTN_START) { win_target = WIN_CHOICES[opt_wins]; return 1; }
+    if (pad_new & BTN_B) return 0;
+    if (pad_new & BTN_UP) opt_row = opt_row ? opt_row - 1 : 2;
+    else if (pad_new & BTN_DOWN) opt_row = opt_row == 2 ? 0 : opt_row + 1;
+    else if (pad_new & (BTN_LEFT | BTN_RIGHT | BTN_A)) {
+      t = (pad_new & BTN_LEFT) ? 2 : 1;          /* +2 mod 3 steps back */
+      if (opt_row == 0) { opt_level = (opt_level + t) % 3; level = opt_level; queue_palette(); }
+      else if (opt_row == 1) opt_monsters ^= 1;
+      else opt_wins = (opt_wins + t) % 3;
+    } else continue;
+    options_draw();
+  }
+}
+
+static char score[18];
+static void make_score(void) {
+  char* s = score;
+  *s++ = 'S'; *s++ = 'C'; *s++ = 'O'; *s++ = 'R'; *s++ = 'E'; *s++ = ' ';
+  s = put_num(s, wins[0]); *s++ = '-'; s = put_num(s, wins[1]); *s = 0;
+}
+
+static void versus_game(void) {
+  u8 r, w;
+  char* s = score;
+  level = opt_level;
+  wins[0] = wins[1] = 0;
+  *s++ = 'F'; *s++ = 'I'; *s++ = 'R'; *s++ = 'S'; *s++ = 'T'; *s++ = ' '; *s++ = 'T'; *s++ = 'O'; *s++ = ' ';
+  s = put_num(s, win_target);
+  *s++ = ' '; *s++ = 'W'; *s++ = 'I'; *s++ = 'N'; *s++ = 'S'; *s = 0;
+  message_screen(LEVEL_NAME[level], score, opt_monsters ? "WATCH OUT FOR THE KRAX" : "P2 USES CONTROLLER 2", 120);
+  for (;;) {
+    start_level(0);
+    r = play_level();
+    if (r == R_DRAW) {
+      make_score();
+      message_screen(time_up ? "TIME UP" : "DRAW", "NOBODY SCORES", score, 120);
+      continue;
+    }
+    w = r - R_P1;
+    ++wins[w];
+    make_score();
+    jingle_pos = 1; jingle_tick = 0;
+    if (wins[w] >= win_target) {
+      confetti = 1;
+      message_screen(w ? "PLAYER 2 WINS THE MATCH!" : "PLAYER 1 WINS THE MATCH!", score, "PRESS START", 0);
+      return;
+    }
+    message_screen(w ? "PLAYER 2 WINS THE ROUND" : "PLAYER 1 WINS THE ROUND", score, 0, 120);
   }
 }
 
@@ -644,22 +896,7 @@ void main(void) {
     title_screen();
     rng ^= frame_count; rng2 ^= frame_count << 1;   /* seed from how long the title was up */
     if (!rng) rng = 1;
-
-    message_screen("LEVEL 1", LEVEL_NAME[0], 0, 100);
-    start_level(0);
-    for (;;) {
-      if (play_level()) {
-        if (level == 2) {
-          message_screen("CONGRATULATIONS!", "YOU CLEARED ALL 3 LEVELS", "YOU WIN!   PRESS START", 0);
-          break;
-        }
-        ++level;
-        message_screen("LEVEL CLEARED", "NEXT UP", LEVEL_NAME[level], 150);
-        start_level(1);
-      } else {
-        message_screen(time_up ? "TIME UP" : burned ? "CAUGHT IN THE BLAST" : "THE KRAX GOT YOU", "TRY AGAIN", LEVEL_NAME[level], 120);
-        start_level(1);
-      }
-    }
+    if (nplayers == 1) solo_game();
+    else if (options_screen()) versus_game();
   }
 }
