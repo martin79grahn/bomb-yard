@@ -67,3 +67,7 @@ CC65=/sökväg/till/cc65 ./build.sh
 | `nrom.cfg` | Minneskarta för NROM: 32 KB program och 8 KB grafik |
 | `tools/make_chr.py` | Gör NES-grafik (`chr.bin`) och typsnitt (`font.h`) från PICO-8-cartens sprites |
 | `tools/make_notes.py` | Gör nottabellen för musiken (`notes.h`) |
+
+## Mega Drive-versionen
+
+I mappen `md/` finns en Mega Drive-version med samma regler som NES-versionen men ny grafik, FM-musik och samplade ljudeffekter. ROM-filen är `md/bomb-yard.bin`. Se `md/README.md`.

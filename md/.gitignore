@@ -1,0 +1,6 @@
+out/
+src/gen/
+res/music/
+res/sfx/
+__pycache__/
+res/resources.h

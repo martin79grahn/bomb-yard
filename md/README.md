@@ -1,0 +1,39 @@
+# Bomb Yard för Mega Drive
+
+En Mega Drive-version av NES-spelet, med samma regler men ny grafik, ny musik och nya ljudeffekter. ROM-filen är `bomb-yard.bin` och går att köra i en Mega Drive-emulator, till exempel ares eller Genesis Plus GX.
+
+## Spelet
+
+Allt från NES-versionen finns med:
+
+- **1 spelare:** tre banor (The Yard, Sand Pit och Frost Cave) med två Kraxar på varje, och en bossbana mellan bana 1 och bana 2. Du väljer 3, 5 eller 10 liv innan spelet. Bossen kan lägga 2 bomber åt gången med sprängräckvidd 5 och tål 3 träffar. Efter 2 träffar blir den röd och snabbare och kan lägga 3 bomber.
+- **2 spelare:** välj bana, om Kraxar ska vara med och hur många vunna rundor som krävs (3, 5 eller 10). Spelare 2 använder handkontroll 2.
+- Under stenarna på varje bana göms 5 bomb-power-ups, 5 eld-power-ups, 2 skor och, med 1 spelare, 1 hjärta som ger ett extra liv. Bomber och eld har ingen övre gräns.
+- Styrhjälpen från NES-versionen: ett tryck strax före en korsning sparas, ett tryck upp till 5 pixlar för sent svänger ändå, och motsatt riktning vänder direkt.
+- Tre minuter per bana. De sista 20 sekunderna går musiken fortare och en klocka tickar.
+
+## Knappar
+
+| Knapp | Gör |
+| --- | --- |
+| Styrkorset | Gå. I menyerna: välj |
+| A, B eller C | Lägg bomb |
+| Start | Börja, pausa och fortsätt |
+| B (i inställningarna) | Tillbaka |
+| C (på titelskärmen) | Debugläge, där du går genom väggar (1 spelare) |
+
+## Grafik och ljud
+
+- Grafiken ritas av `tools/make_gfx.py` pixel för pixel, med ljus från övre vänstra hörnet och mörk kontur. Gubbarna har visir och ögon, bossen har horn och Kraxarna är små svarta fåglar med orange näbb. Blocken kastar skugga på golvet, eldstrålarna flimrar och tunnas ut innan de slocknar, och bomberna blinkar rött strax innan de smäller. Varje bana har egna färger, och bossbanan är mörklila.
+- Musiken skrivs av `tools/make_music.py` som VGM-filer för FM-synten: NES-melodierna arrangerade med bas, ackordarpeggio, eko i stereo och trummor, plus ny musik för titelskärmen och bossen och korta jinglar när du klarar en bana, vinner eller får game over.
+- Ljudeffekterna syntetiseras av `tools/make_sfx.py` och spelas som samplingar: explosion, bomb, power-up, hjärta, död, bossträff, klocktick och menyljud.
+
+## Bygga
+
+Du behöver Python 3 med Pillow och Podman (eller Docker). SGDK körs i en container.
+
+```sh
+./build.sh
+```
+
+ROM-filen hamnar i `out/rom.bin`. Testbygget `EXTRA_FLAGS="-DTEST_CLEAR" ./build.sh` (kör `./build.sh clean` först) klarar varje bana med Kraxar efter två sekunder, så att du snabbt kommer till bossen.
