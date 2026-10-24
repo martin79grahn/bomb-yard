@@ -308,6 +308,7 @@ const SFX = {
   pickup: () => tone([523, 659, 784, 1047], 0.22, "square", 0.06),
   die: () => tone([600, 450, 320, 200, 120], 0.6, "sawtooth", 0.07),
   win: () => tone([392, 523, 659, 784, 659, 784], 0.7, "square", 0.06),
+  heart: () => tone([659, 784, 1047, 1319, 1568, 2093], 0.32, "square", 0.06),   // a rising sparkle for an extra life
 };
 let boomedThisFrame = false;
 
@@ -634,7 +635,7 @@ function collect(p){
   if (pk.type === "shoe" && p.speedUps < MAX_SPEEDUPS) { p.speedUps++; p.speed = 1 + p.speedUps * SPEED_STEP; }
   if (pk.type === "fire") p.fire++;
   if (pk.type === "bomb") p.bombs++;
-  if (pk.type === "life") { lives = Math.min(99, lives + 1); SFX.win(); renderHud(); return; }
+  if (pk.type === "life") { lives = Math.min(99, lives + 1); SFX.heart(); renderHud(); return; }
   SFX.pickup(); renderHud();
 }
 

@@ -380,6 +380,21 @@ static void music_stop(void) {
   if (!boom_t) APU[12] = 0x30;
 }
 
+/* extra life: a quick rising sparkle on pulse 2 (the effects channel), played during the game */
+static const u8 HEART_TUNE[6] = { 76, 79, 84, 88, 91, 96 };
+static u8 heart_pos, heart_tick;     /* heart_pos 0 = silent */
+static void heart_frame(void) {
+  u8 n;
+  if (!heart_pos) return;
+  if (heart_tick) { --heart_tick; return; }
+  if (heart_pos > sizeof(HEART_TUNE)) { APU[4] = 0x30; heart_pos = 0; return; }
+  heart_tick = heart_pos == sizeof(HEART_TUNE) ? 10 : 3;
+  n = HEART_TUNE[heart_pos - 1] - NOTE_LO;
+  APU[4] = heart_pos == sizeof(HEART_TUNE) ? 0x84 : 0x8A; APU[5] = 0x08;   /* 50% duty, fading out */
+  APU[6] = PULSE_PERIOD[n] & 0xFF; APU[7] = (PULSE_PERIOD[n] >> 8) | 0x08;
+  ++heart_pos;
+}
+
 /* win jingle on pulse 1, played while a message screen is up */
 static const u8 WIN_TUNE[6] = { 67, 72, 76, 79, 76, 79 };
 static u8 jingle_pos, jingle_tick;   /* jingle_pos 0 = silent */
@@ -692,7 +707,7 @@ static void collect(void) {
     if (lives < 99) ++lives;
     SET_ITEM(ci, 0);
     mark(ci);
-    jingle_pos = 1; jingle_tick = 0;               /* the win jingle, short and happy */
+    heart_pos = 1; heart_tick = 0;                 /* a rising sparkle */
     hud_lives();
     return;
   }
@@ -1044,6 +1059,7 @@ static u8 play_level(void) {
     wait_frame();
     read_pad();
     music_frame();
+    heart_frame();
 
     if ((pad_new | pad2_new) & BTN_START) {           /* pause */
       music_stop();
