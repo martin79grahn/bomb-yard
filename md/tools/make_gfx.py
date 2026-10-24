@@ -59,6 +59,8 @@ KRAX = ["#1e1e2a", "#3e3e58", "#6e6e92", "#ff9a1a", "#ffffff"]
 SUITS = {   # suit shade/mid/light, visor, glint, trim dark/light, boots dark/light
     "p1":    ["#8890b0", "#c8cee2", "#ffffff", "#182040", "#5ad8ff", "#1e54d0", "#4a90ff", "#4a2a18", "#8a5a30"],
     "p2":    ["#902030", "#d83a4a", "#ff9090", "#182040", "#5ad8ff", "#b08a10", "#ffd84a", "#4a2a18", "#8a5a30"],
+    "sky":   ["#1c4aa8", "#3a8ae8", "#9ad2ff", "#101830", "#ffe04a", "#b08a10", "#ffd84a", "#2a2a3a", "#5a5a72"],
+    "nova":  ["#a86a10", "#e8b028", "#fff08a", "#2a1440", "#ff7ad0", "#5a28a8", "#9a62ff", "#3a2014", "#6a4428"],
     "boss":  ["#3e2478", "#7048c8", "#a888ff", "#140c24", "#ff5a5a", "#a87a10", "#ffd84a", "#241430", "#4a2c5a"],
     "angry": ["#801440", "#cc2c62", "#ff7aa0", "#140c24", "#ffe04a", "#a87a10", "#ffd84a", "#241430", "#4a2c5a"],
 }
@@ -71,7 +73,8 @@ def sprite_pal(suit):
 PALETTES = {
     "arena": [[md(hexrgb(c)) for c in pal0(t)] for t in ("yard", "sand", "frost", "boss")],
     "items": [md(hexrgb(c)) for c in PAL1],
-    "sprites": [[md(hexrgb(c)) for c in sprite_pal(s)] for s in ("p1", "p2", "boss", "angry")],
+    # the four characters (Bit, Ruby, Sky, Nova), then the boss and the angry boss
+    "sprites": [[md(hexrgb(c)) for c in sprite_pal(s)] for s in ("p1", "p2", "sky", "nova", "boss", "angry")],
 }
 
 # ---------------------------------------------------------------- canvas helpers
@@ -680,7 +683,7 @@ with open(os.path.join(OUT, "gfx.h"), "w") as f:
     for k, v in consts.items():
         f.write(f"#define {k} {v}\n")
     f.write("\nextern const u32 GFX_TILES[];\n")
-    f.write("extern const u16 PAL_ARENA[4][16];\nextern const u16 PAL_ITEMS[16];\nextern const u16 PAL_SPRITES[4][16];\n")
+    f.write("extern const u16 PAL_ARENA[4][16];\nextern const u16 PAL_ITEMS[16];\nextern const u16 PAL_SPRITES[6][16];\n")
     for k, v in arrays.items():
         f.write(f"extern const u16 {k}[{len(v)}];\n")
 with open(os.path.join(OUT, "gfx.c"), "w") as f:
@@ -694,7 +697,7 @@ with open(os.path.join(OUT, "gfx.c"), "w") as f:
         return f"const u16 {name} = {{" + ",".join(f"0x{v:04X}" for v in vals) + "};\n"
     f.write("const u16 PAL_ARENA[4][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["arena"]) + "\n};\n")
     f.write(arr("PAL_ITEMS[16]", PALETTES["items"]))
-    f.write("const u16 PAL_SPRITES[4][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["sprites"]) + "\n};\n")
+    f.write("const u16 PAL_SPRITES[6][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["sprites"]) + "\n};\n")
     for k, v in arrays.items():
         f.write(f"const u16 {k}[{len(v)}] = {{" + ",".join(str(x) for x in v) + "};\n")
 print(f"gfx: {len(tiles)} tiles")

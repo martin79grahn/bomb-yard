@@ -171,6 +171,10 @@ static const u8 PALETTES[3][32] = {
 };
 /* the boss's suit in sprite palette 1: purple, then redder after two hits */
 static const u8 BOSS_PAL[2][3] = { { 0x0F, 0x14, 0x24 }, { 0x0F, 0x15, 0x26 } };
+/* the four characters to play as: suit and trim colours (sprite colours 2 and 3) and names */
+static const u8 CHAR_PAL[4][2] = { { 0x30, 0x16 }, { 0x16, 0x36 }, { 0x12, 0x31 }, { 0x28, 0x17 } };
+static const char* const CHAR_NAME[4] = { "BIT ", "RUBY", "SKY ", "NOVA" };
+static u8 opt_char[2] = { 0, 1 };   /* player 1's and player 2's character */
 static const char* const LEVEL_NAME[3] = { "THE YARD", "SAND PIT", "FROST CAVE" };
 static const u8 MONSTER_SPEED[3] = { 8, 10, 13 };   /* 1/16 px per frame: 0.5, 0.64, 0.8 */
 
@@ -204,11 +208,16 @@ static void set_addr(u16 a) { PPUSTATUS; PPUADDR = a >> 8; PPUADDR = a & 0xFF; }
 
 /* rendering must be off. Writing in vblank and pointing the PPU back at $0000 afterwards
    keeps the palette colours from showing up as streaks on screen while they are written */
+/* colour i of the level's palettes, with the chosen characters' suits in sprite palettes 0 and 1 */
+static u8 pal_byte(u8 n) {
+  if (n == 18 || n == 19) return CHAR_PAL[opt_char[0]][n - 18];
+  if (n == 22 || n == 23) return CHAR_PAL[opt_char[1]][n - 22];
+  return PALETTES[level][n];
+}
 static void load_palette(void) {
-  const u8* p = PALETTES[level];
   wait_frame();
   set_addr(0x3F00);
-  for (i = 0; i < 32; ++i) PPUDATA = p[i];
+  for (i = 0; i < 32; ++i) PPUDATA = pal_byte(i);
   set_addr(0x0000);
 }
 
@@ -999,6 +1008,7 @@ static void start_level(u8 keep) {
   } else {
     if (boss) put_text(1, 1, "BOSS");
     else { put_text(1, 1, "LEVEL"); hud[0] = '1' + level; hud[1] = 0; put_text(7, 1, hud); }
+    put_text(21, 1, CHAR_NAME[opt_char[0]]);
     if (debug) put_text(26, 1, "DEBUG");
     hud_lives();
   }
@@ -1164,45 +1174,68 @@ static u8 opt_row;
 /* the level's colours, so the options screen previews the chosen arena */
 static void queue_palette(void) {
   vram_buf[vlen++] = 32; vram_buf[vlen++] = 0x3F; vram_buf[vlen++] = 0x00;
-  for (i = 0; i < 32; ++i) vram_buf[vlen++] = PALETTES[level][i];
+  for (i = 0; i < 32; ++i) vram_buf[vlen++] = pal_byte(i);
+}
+/* the chosen characters stand next to their names (rows y1 and y2 in tiles) */
+static void options_sprites(u8 y1, u8 y2) {
+  u8 p, y, x;
+  oi = 0;
+  for (p = 0; p < nplayers; ++p) {
+    y = (p ? y2 : y1) * 8 - 9;
+    x = p ? 216 : 184;                    /* side by side, the rows are close */
+    for (j = 0; j < 3; ++j) { spr(x, y + j * 8, j * 16, p); spr(x + 8, y + j * 8, j * 16 + 1, p); }
+  }
+  do { OAM[oi] = 0xFF; oi += 4; } while (oi);
 }
 static void options_draw(void) {
   if (nplayers == 1) {
-    vtext(5, 13, ">");
-    vtext(17, 13, opt_lives == 0 ? "3 " : opt_lives == 1 ? "5 " : "10");
+    vtext(5, 11, opt_row == 0 ? ">" : " ");
+    vtext(5, 13, opt_row == 1 ? ">" : " ");
+    vtext(17, 11, opt_lives == 0 ? "3 " : opt_lives == 1 ? "5 " : "10");
+    vtext(17, 13, CHAR_NAME[opt_char[0]]);
     return;
   }
-  vtext(5, 11, opt_row == 0 ? ">" : " ");
-  vtext(5, 13, opt_row == 1 ? ">" : " ");
-  vtext(5, 15, opt_row == 2 ? ">" : " ");
-  vtext(17, 11, LEVEL_PAD[opt_level]);
-  vtext(17, 13, opt_monsters ? "ON " : "OFF");
-  vtext(17, 15, opt_wins == 0 ? "3 " : opt_wins == 1 ? "5 " : "10");
+  for (t = 0; t < 5; ++t) vtext(5, 9 + t * 2, opt_row == t ? ">" : " ");
+  vtext(17, 9, LEVEL_PAD[opt_level]);
+  vtext(17, 11, opt_monsters ? "ON " : "OFF");
+  vtext(17, 13, opt_wins == 0 ? "3 " : opt_wins == 1 ? "5 " : "10");
+  vtext(17, 15, CHAR_NAME[opt_char[0]]);
+  vtext(17, 17, CHAR_NAME[opt_char[1]]);
+}
+/* the next character for player p (step 1 forward, 3 back), never the other player's */
+static void next_char(u8 p, u8 step) {
+  do opt_char[p] = (opt_char[p] + step) & 3;
+  while (nplayers == 2 && opt_char[p] == opt_char[p ^ 1]);
 }
 /* up/down picks a row, left/right (or A) changes it; returns 1 for START, 0 for B (back).
-   1 player: lives. 2 players: level, monsters and wins. */
+   1 player: lives and character. 2 players: level, monsters, wins and both characters. */
 static u8 options_screen(void) {
-  u8 rows = nplayers == 1 ? 1 : 3;
+  u8 rows = nplayers == 1 ? 2 : 5;
   ppu_off();
   music_stop();
   clear_screen();
   level = nplayers == 1 ? 0 : opt_level;
   if (nplayers == 1) {
     put_text_centered(6, "1 PLAYER OPTIONS");
-    put_text(7, 13, "LIVES");
+    put_text(7, 11, "LIVES");
+    put_text(7, 13, "PLAYER");
   } else {
-    put_text_centered(6, "2 PLAYER OPTIONS");
-    put_text(7, 11, "LEVEL");
-    put_text(7, 13, "MONSTERS");
-    put_text(7, 15, "WINS");
+    put_text_centered(5, "2 PLAYER OPTIONS");
+    put_text(7, 9, "LEVEL");
+    put_text(7, 11, "MONSTERS");
+    put_text(7, 13, "WINS");
+    put_text(7, 15, "P1");
+    put_text(7, 17, "P2");
+    if (opt_char[0] == opt_char[1]) next_char(1, 1);
   }
-  put_text_centered(19, "UP/DOWN: CHOOSE");
-  put_text_centered(21, "LEFT/RIGHT: CHANGE");
-  put_text_centered(24, "START: PLAY   B: BACK");
+  put_text_centered(21, "UP/DOWN: CHOOSE");
+  put_text_centered(23, "LEFT/RIGHT: CHANGE");
+  put_text_centered(25, "START: PLAY   B: BACK");
   hide_sprites();
   load_palette();
   opt_row = 0;
   options_draw();
+  if (nplayers == 1) options_sprites(13, 0); else options_sprites(15, 17);
   ppu_on();
   pad = 0xFF; pad2 = 0xFF;
   for (;;) {
@@ -1214,10 +1247,14 @@ static u8 options_screen(void) {
     else if (pad_new & BTN_DOWN) opt_row = opt_row == rows - 1 ? 0 : opt_row + 1;
     else if (pad_new & (BTN_LEFT | BTN_RIGHT | BTN_A)) {
       t = (pad_new & BTN_LEFT) ? 2 : 1;          /* +2 mod 3 steps back */
-      if (nplayers == 1) opt_lives = (opt_lives + t) % 3;
+      if (nplayers == 1) {
+        if (opt_row == 0) opt_lives = (opt_lives + t) % 3;
+        else { next_char(0, t == 2 ? 3 : 1); queue_palette(); }
+      }
       else if (opt_row == 0) { opt_level = (opt_level + t) % 3; level = opt_level; queue_palette(); }
       else if (opt_row == 1) opt_monsters ^= 1;
-      else opt_wins = (opt_wins + t) % 3;
+      else if (opt_row == 2) opt_wins = (opt_wins + t) % 3;
+      else { next_char(opt_row - 3, t == 2 ? 3 : 1); queue_palette(); }
     } else continue;
     options_draw();
   }

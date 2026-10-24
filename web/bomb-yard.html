@@ -167,11 +167,13 @@ body:not(.two) .pad.p2 { display: none; }
             <button id="btnClassic" type="button" aria-pressed="true">Classic mode</button>
             <button id="btnEnhanced" type="button" aria-pressed="false">New enhanced mode</button>
           </div>
-          <div class="styles" id="ovOpts" role="group" aria-label="2-player options">
+          <div class="styles" id="ovOpts" role="group" aria-label="Options">
             <button id="optArena" type="button" title="2 players: which arena">Arena: changes</button>
             <button id="optMonsters" type="button" title="2 players: monsters in the arena">Monsters: off</button>
             <button id="optWins" type="button" title="2 players: rounds needed to win">Wins: 3</button>
             <button id="optLives" type="button" title="1 player: lives">Lives: 3</button>
+            <button id="optChar1" type="button" title="Player 1's character">P1: Bit</button>
+            <button id="optChar2" type="button" title="2 players: player 2's character">P2: Ruby</button>
           </div>
           <div class="modes" id="ovModes">
             <button id="btnCpu" type="button">1P vs monsters</button>
@@ -243,6 +245,17 @@ function buildSheet(remap, transp = TRANSP){
 }
 const SHEET = buildSheet();
 const SHEET_RED = buildSheet({7:8, 6:8, 13:8});   // same recolor as the cart's player 2
+// the four characters to play as: name, recolor of the cart's bomber, enhanced-mode suit
+const CHARS = [
+  { name: "Bit",  sheet: SHEET,
+    suit: { suit: "#f4f5fa", shade: "#c3c7d6", accent: "#3d7bff", glow: "#ffe45c" } },
+  { name: "Ruby", sheet: SHEET_RED,
+    suit: { suit: "#ff4766", shade: "#c41e3d", accent: "#ffd23f", glow: "#ff9d2e" } },
+  { name: "Sky",  sheet: buildSheet({7:12, 6:12, 13:1}),
+    suit: { suit: "#56b4ff", shade: "#1f62c8", accent: "#ffd23f", glow: "#8fdcff" } },
+  { name: "Nova", sheet: buildSheet({7:10, 6:9, 13:9}),
+    suit: { suit: "#ffd84a", shade: "#d08a10", accent: "#7b3fe0", glow: "#fff08a" } },
+];
 // the boss: a lavender suit, pink and red once it has taken two hits
 const SHEET_BOSS = buildSheet({7:13, 6:1, 13:1}), SHEET_BOSS_ANGRY = buildSheet({7:14, 6:8, 13:8});
 const FLASH = {}; for (let i = 0; i < 16; i++) FLASH[i] = 7;
@@ -438,9 +451,11 @@ let boss = false;        // 1-player boss stage, between levels 1 and 2 (level s
 const POOL = { bomb: 5, fire: 5, shoe: 2, life: 1 };
 const BOSS = { hp: 3, fire: 5, bombs: 2, angryBombs: 3, speed: 0.875, angrySpeed: 1.15 };
 // 2-player options, kept between visits: arena (-1 = a new one every round), monsters, wins needed
-const opts = { arena: -1, monsters: false, wins: 3, lives: 3 };
+const opts = { arena: -1, monsters: false, wins: 3, lives: 3, chars: [0, 1] };
 try { Object.assign(opts, JSON.parse(localStorage.getItem("by-opts") || "{}")); } catch (e) {}
 function winsNeeded(){ return opts.wins; }
+if (!Array.isArray(opts.chars) || opts.chars.length !== 2) opts.chars = [0, 1];
+function charOf(id){ return CHARS[opts.chars[id] % CHARS.length]; }
 let lives = 0;           // 1-player lives left
 let roundNo = 0;         // 2-player rounds played; the arena changes every round
 let debug = false;       // debug mode: player 1 walks through walls
@@ -713,13 +728,13 @@ function tick(){
   for (const p of G.players) {
     if (!p.alive) continue;
     if (p.boss) { const f = flameAt(Math.round(p.x/16), Math.round(p.y/16)); if (!p.inv && f && !f.bossOnly) hitBoss(p); continue; }   // its own fire can't hurt it
-    if (flameAt(Math.round(p.x/16), Math.round(p.y/16))) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, SUITS[p.id].glow); }
+    if (flameAt(Math.round(p.x/16), Math.round(p.y/16))) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, charOf(p.id).suit.glow); }
   }
   for (const m of G.monsters) {
     if (!m.alive) continue;
     if (flameAt(Math.round(m.x/16), Math.round(m.y/16))) { m.alive = false; m.deathT = 40; SFX.pickup(); fxPop(m.x, m.y, "#ffffff"); renderHud(); continue; }
     for (const p of G.players)
-      if (p.alive && Math.abs(p.x - m.x) < 11 && Math.abs(p.y - m.y) < 11) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, SUITS[p.id].glow); }
+      if (p.alive && Math.abs(p.x - m.x) < 11 && Math.abs(p.y - m.y) < 11) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, charOf(p.id).suit.glow); }
   }
   for (const pk of G.pickups) pk.fresh = false;
 
@@ -985,12 +1000,16 @@ document.getElementById("btnMenu").addEventListener("click", () => {
   phase = "menu"; showOverlay("BOMB YARD", "", "menu"); renderOpts();
   statusEl.textContent = "Pick a mode to start.";
 });
-const optArena = document.getElementById("optArena"), optMonsters = document.getElementById("optMonsters"), optWins = document.getElementById("optWins"), optLives = document.getElementById("optLives");
+const optArena = document.getElementById("optArena"), optMonsters = document.getElementById("optMonsters"), optWins = document.getElementById("optWins"), optLives = document.getElementById("optLives"),
+      optChar1 = document.getElementById("optChar1"), optChar2 = document.getElementById("optChar2");
 function renderOpts(){
   optArena.textContent = `Arena: ${opts.arena < 0 ? "changes" : LEVELS[opts.arena].name}`;
   optMonsters.textContent = `Monsters: ${opts.monsters ? "on" : "off"}`;
   optWins.textContent = `Wins: ${opts.wins}`;
   optLives.textContent = `Lives: ${opts.lives}`;
+  if (opts.chars[0] === opts.chars[1]) opts.chars[1] = (opts.chars[1] + 1) % CHARS.length;
+  optChar1.textContent = `P1: ${charOf(0).name}`;
+  optChar2.textContent = `P2: ${charOf(1).name}`;
   if (phase === "menu") ovSub.textContent = `Blow up the stone, grab the power-ups, catch the other player in your blast. 2 players: first to ${opts.wins} rounds wins.`;
   try { localStorage.setItem("by-opts", JSON.stringify(opts)); } catch (e) {}
 }
@@ -998,6 +1017,13 @@ optArena.addEventListener("click", () => { opts.arena = opts.arena + 1 >= LEVELS
 optMonsters.addEventListener("click", () => { opts.monsters = !opts.monsters; renderOpts(); });
 optWins.addEventListener("click", () => { opts.wins = opts.wins === 3 ? 5 : opts.wins === 5 ? 10 : 3; renderOpts(); });
 optLives.addEventListener("click", () => { opts.lives = opts.lives === 3 ? 5 : opts.lives === 5 ? 10 : 3; renderOpts(); });
+// the next character, never the one the other player has
+function nextChar(id){
+  do opts.chars[id] = (opts.chars[id] + 1) % CHARS.length; while (opts.chars[id] === opts.chars[1 - id]);
+  renderOpts(); renderHud();
+}
+optChar1.addEventListener("click", () => nextChar(0));
+optChar2.addEventListener("click", () => nextChar(1));
 const btnMute = document.getElementById("btnMute");
 function toggleMute(){ muted = !muted; btnMute.textContent = `Sound: ${muted ? "off" : "on"}`; }
 btnMute.addEventListener("click", toggleMute);
@@ -1051,7 +1077,7 @@ function renderHud(){
     const filled = solo ? (id === 0 ? level - 1 + (phase === "victory" ? 1 : 0) : 0) : wins[id];
     document.getElementById("pips" + (id+1)).innerHTML = solo && id === 1 ? "" :
       Array.from({ length: solo ? LEVELS.length : winsNeeded() }, (_, i) => `<span class="pip${i < filled ? " on" : ""}"></span>`).join("");
-    document.getElementById("who" + (id+1)).textContent = id === 0 ? (mode === "2p" ? "Human" : "You") : (mode === "2p" ? "Human" : boss ? "Boss" : "Monsters");
+    document.getElementById("who" + (id+1)).textContent = id === 0 || mode === "2p" ? charOf(id).name : boss ? "Boss" : "Monsters";
     const dl = document.getElementById("stats" + (id+1)); dl.innerHTML = "";
     const total = G && G.monsters && G.monsters.length ? G.monsters.length : MONSTER_COUNT;
     const left = G && G.monsters ? G.monsters.filter(m => m.alive).length : total;
@@ -1107,7 +1133,7 @@ function draw(){
   for (const p of ps) {
     if (!p.alive && p.deathT <= 0) continue;
     const a = ANIM[p.dir], fr = p.moving ? p.frame : 0;
-    let sheet = p.boss ? (p.hp <= 1 ? SHEET_BOSS_ANGRY : SHEET_BOSS) : p.id === 1 ? SHEET_RED : SHEET;
+    let sheet = p.boss ? (p.hp <= 1 ? SHEET_BOSS_ANGRY : SHEET_BOSS) : charOf(p.id).sheet;
     if (p.boss && p.alive && p.inv && Math.floor(p.inv / 4) % 2) continue;   // blinks while it can't be hurt
     if (!p.alive) { if (Math.floor(p.deathT / 3) % 2) continue; sheet = SHEET_FLASH; }
     spr(sheet, a.f[fr], p.x, p.y - 8, 2, 3, a.flip[fr]);
@@ -1358,10 +1384,6 @@ function stepParticles(){
 }
 
 // ---------- characters ----------
-const SUITS = [
-  { suit: "#f4f5fa", shade: "#c3c7d6", accent: "#3d7bff", glow: "#ffe45c" },
-  { suit: "#ff4766", shade: "#c41e3d", accent: "#ffd23f", glow: "#ff9d2e" },
-];
 const BOSS_SUITS = [
   { suit: "#a07cff", shade: "#5a33b8", accent: "#ffd23f", glow: "#d6a8ff" },
   { suit: "#ff5c7a", shade: "#b3123a", accent: "#ffd23f", glow: "#ff4b4b" },
@@ -1369,7 +1391,7 @@ const BOSS_SUITS = [
 function blobShadow(c, x, y, rx, ry, a = 0.28){ c.fillStyle = `rgba(0,0,0,${a})`; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); c.fill(); }
 
 function drawBomber(c, p, t){
-  const [x, y] = proj(p.x / 16 + 0.5, p.y / 16 + 0.5), s = p.boss ? BOSS_SUITS[p.hp <= 1 ? 1 : 0] : SUITS[p.id];
+  const [x, y] = proj(p.x / 16 + 0.5, p.y / 16 + 0.5), s = p.boss ? BOSS_SUITS[p.hp <= 1 ? 1 : 0] : charOf(p.id).suit;
   let scale = p.boss ? 1.25 : 1, alpha = 1, spin = 0;
   if (p.boss && p.alive && p.inv && Math.floor(p.inv / 4) % 2) alpha = 0.3;
   if (!p.alive) { const k = p.deathT / 60; scale *= 0.4 + 0.6 * k; alpha = k; spin = (1 - k) * 6; }

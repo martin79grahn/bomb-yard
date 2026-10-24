@@ -2,13 +2,14 @@
 
 En NES-version av Bomb Yard med två lägen:
 
-- **1 spelare:** du är Bit och ska spränga de två Kraxarna i tre levels, The Yard, Sand Pit och Frost Cave. Varje level har tre minuter på klockan. Innan spelet väljer du hur många liv du har, 3, 5 eller 10. Varje gång du dör förlorar du ett liv och försöker banan igen, och när liven är slut är det game over.
+- **1 spelare:** du är Bit och ska spränga de två Kraxarna i tre levels, The Yard, Sand Pit och Frost Cave. Varje level har tre minuter på klockan. Innan spelet väljer du hur många liv du har, 3, 5 eller 10, och vilken figur du vill spela som: Bit (vit), Ruby (röd), Sky (blå) eller Nova (gul). Varje gång du dör förlorar du ett liv och försöker banan igen, och när liven är slut är det game over.
 
   Mellan level 1 och level 2 kommer en **bossbana**. Bossen är en lila bombare som kan lägga 2 bomber åt gången med sprängräckvidd 5, och den behöver 3 träffar för att dö. Efter 2 träffar blir den rödare och lite snabbare och kan lägga 3 bomber åt gången. Den blinkar en stund efter varje träff och kan inte skadas då. Att nudda bossen är ofarligt, det är bomberna du ska akta dig för. Bossen skadas inte av sina egna bomber, bara av dina.
 - **2 spelare:** spräng varandra på en slumpad bana. Spelare 2 (röd) använder handkontroll 2. Tar tiden slut blir rundan oavgjord. Innan matchen väljer du på en inställningsskärm:
   - **Level:** The Yard, Sand Pit eller Frost Cave.
   - **Monsters:** på eller av. När de är på går två Kraxar runt på banan, och den som nuddar en är ute.
   - **Wins:** hur många vunna rundor som krävs för att vinna matchen, 3, 5 eller 10.
+  - **P1 och P2:** vilken figur varje spelare har, Bit, Ruby, Sky eller Nova. Två spelare kan inte välja samma.
 
 Under stenarna på varje bana göms 5 bomb-power-ups, 5 eld-power-ups och 2 skor, och i 1-spelarläget också 1 hjärta som ger ett extra liv. Det finns ingen övre gräns för hur många bomber eller hur lång eld du kan samla på dig, men skorna slutar ge fart efter 4.
 
@@ -37,6 +38,8 @@ Explosionerna ritas som sammanhängande strålar som bara är rundade i ändarna
 ## Webbversionen
 
 `web/bomb-yard.html` är originalspelet för webbläsaren, som hela spelet i en enda fil. Öppna den i en webbläsare på dator eller mobil. Den har tvåspelarläge på samma telefon med knappar för båda, en större bana på 16×16 rutor och knappar på skärmen för mobilen. Musiken är samma låtar som i NES-versionen.
+
+Knapparna **P1** och **P2** i menyn väljer figur: Bit, Ruby, Sky eller Nova. Valet sparas till nästa gång.
 
 ### Classic mode och New enhanced mode
 
