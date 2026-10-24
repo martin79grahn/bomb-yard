@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Controls</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;family=Archivo:wght@400;600;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A01800}a:hover{color:#6E1000}
+</style>
+</helmet>
+<div style="width: 480px; height: 680px; box-sizing: border-box; background-color: #F3EEDF; color: #141414; font-family: 'Archivo', sans-serif; display: flex; flex-direction: column">
+  <div style="background-color: #141414; padding: 18px 28px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 6px solid #D82800">
+    <h2 style="margin: 0; font-family: 'Press Start 2P', monospace; font-size: 16px; color: #FCFCFC">CONTROLS</h2>
+    <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; color: #BCBCBC">CONTROLLERS 1-2</span>
+  </div>
+
+  <div style="flex: 1; padding: 20px 28px 0; display: flex; flex-direction: column; gap: 16px">
+    <div style="align-self: center; width: 400px; height: 168px; box-sizing: border-box; background-color: #C9C6BE; border-radius: 10px; border: 3px solid #141414; padding: 16px; display: flex">
+      <div style="flex: 1; background-color: #1E1E1E; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px">
+        <div style="position: relative; width: 84px; height: 84px" aria-label="Control pad" role="img">
+          <div style="position: absolute; left: 28px; top: 0; width: 28px; height: 84px; background-color: #3A3A3A; border-radius: 3px"></div>
+          <div style="position: absolute; left: 0; top: 28px; width: 84px; height: 28px; background-color: #3A3A3A; border-radius: 3px"></div>
+        </div>
+        <div style="display: flex; gap: 12px; align-self: flex-end; margin-bottom: 34px">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <div style="width: 34px; height: 10px; border-radius: 6px; background-color: #6E6A60"></div>
+            <span style="font-family: 'Press Start 2P', monospace; font-size: 7px; color: #D82800">SELECT</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <div style="width: 34px; height: 10px; border-radius: 6px; background-color: #6E6A60"></div>
+            <span style="font-family: 'Press Start 2P', monospace; font-size: 7px; color: #D82800">START</span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 14px; align-items: center">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <div style="width: 38px; height: 38px; border-radius: 50%; background-color: #D82800; border: 3px solid #C9C6BE; box-sizing: border-box"></div>
+            <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; color: #D82800">B</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+            <div style="width: 38px; height: 38px; border-radius: 50%; background-color: #D82800; border: 3px solid #C9C6BE; box-sizing: border-box"></div>
+            <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; color: #D82800">A</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; border-top: 3px solid #141414">
+      <div style="display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 16px; padding: 10px 0; border-bottom: 2px solid #D8D1BE; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; line-height: 1.5">CONTROL PAD</span>
+        <span style="font-size: 14px; line-height: 1.4">Walk. A quick tap moves exactly one square. On the title screen, pick 1 or 2 players.</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 16px; padding: 10px 0; border-bottom: 2px solid #D8D1BE; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; line-height: 1.5">A OR B</span>
+        <span style="font-size: 14px; line-height: 1.4">Drop a bomb where you stand. It goes off after 3 seconds.</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 16px; padding: 10px 0; border-bottom: 2px solid #D8D1BE; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; line-height: 1.5">START</span>
+        <span style="font-size: 14px; line-height: 1.4">Start the game. During play, either player can pause and resume. The clock stops while paused.</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 16px; padding: 10px 0; border-bottom: 2px solid #D8D1BE; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; line-height: 1.5">SELECT</span>
+        <span style="font-size: 14px; line-height: 1.4">On the title screen, switch Debug Mode on or off (1 player only). See page 7.</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 16px; padding: 10px 0; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; line-height: 1.5">CONTROLLER 2</span>
+        <span style="font-size: 14px; line-height: 1.4">Player 2 plays Red, the red bomber, with the same buttons. See page 6.</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding: 14px 28px 18px; display: flex; justify-content: space-between; align-items: center; font-family: 'Press Start 2P', monospace; font-size: 9px; color: #6E6A60">
+    <span>BOMB YARD</span>
+    <span>2</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":480,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

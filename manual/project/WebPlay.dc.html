@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Playing on the web</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;family=Archivo:wght@400;600;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A01800}a:hover{color:#6E1000}
+</style>
+</helmet>
+<div style="width: 480px; height: 680px; box-sizing: border-box; background-color: #F3EEDF; color: #141414; font-family: 'Archivo', sans-serif; display: flex; flex-direction: column">
+  <div style="background-color: #141414; padding: 18px 28px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 6px solid #D82800">
+    <h2 style="margin: 0; font-family: 'Press Start 2P', monospace; font-size: 16px; color: #FCFCFC">WEB CONTROLS</h2>
+    <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; color: #BCBCBC">KEYS + TOUCH</span>
+  </div>
+
+  <div style="flex: 1; padding: 16px 28px 0; display: flex; flex-direction: column; gap: 12px">
+    <p style="margin: 0; font-size: 14px; line-height: 1.45">In the menu, choose <b>1P VS MONSTERS</b>, <b>2 PLAYERS</b> or <b>DEBUG</b> (1 player, walk through walls). The yard is bigger on the web: 16 by 16 squares.</p>
+
+    <div style="display: flex; flex-direction: column; border-top: 3px solid #141414">
+      <div style="display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 7px 0; border-bottom: 2px solid #D8D1BE; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; line-height: 1.5">1 PLAYER</span>
+        <span style="font-size: 13px; line-height: 1.35">Arrow keys or W A S D to walk. Space or X drops a bomb.</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 7px 0; border-bottom: 2px solid #D8D1BE; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; line-height: 1.5">PLAYER 1</span>
+        <span style="font-size: 13px; line-height: 1.35">In 2 players: W A S D and Space.</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 7px 0; border-bottom: 2px solid #D8D1BE; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; line-height: 1.5">PLAYER 2</span>
+        <span style="font-size: 13px; line-height: 1.35">In 2 players: arrow keys and Enter.</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 7px 0; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; line-height: 1.5">P / ESC, M</span>
+        <span style="font-size: 13px; line-height: 1.35">Pause and resume. M turns the sound on or off.</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 14px; align-items: flex-start">
+      <img src="/_blob/fb9a76161f24d4ad48c388c6e49e3960" alt="Two players on one phone, with a pad and bomb button for each" style="width: 150px; height: 200px; border: 3px solid #141414; flex-shrink: 0">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; color: #A01800; line-height: 1.5">ON A PHONE</span>
+        <span style="font-size: 13px; line-height: 1.4">Use the arrows and the BOMB button on the screen. With 2 players, lay the phone flat between you: player 2's buttons sit at the top, turned to face across the table.</span>
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; color: #A01800; line-height: 1.5">2 PLAYER MATCH</span>
+        <span style="font-size: 13px; line-height: 1.4">First to <b>3 rounds</b> wins. Each round moves to the next level, from The Yard to the Sand Pit to the Frost Cave. No monsters.</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding: 12px 28px 16px; display: flex; justify-content: space-between; align-items: center; font-family: 'Press Start 2P', monospace; font-size: 9px; color: #6E6A60">
+    <span>BOMB YARD</span>
+    <span>9</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":480,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

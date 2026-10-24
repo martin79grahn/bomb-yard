@@ -39,6 +39,10 @@ I webbversionens meny väljer du utseende innan du startar. Valet sparas till n�
   - **Nya monster:** slemklumpar som vandrar runt, skalbaggar som rusar mot dig när de ser dig längs en gång, och irrbloss som svävar efter dig. The Yard har en slemklump och en skalbagge, Sand Pit en skalbagge och ett irrbloss, och Frost Cave alla tre.
   - **Ny musik:** modern instrumental musik med syntetiserade trummor, bas, synthmattor och eko. Tropical house i The Yard, ökeninspirerad deep house med darbuka och oud-liknande melodi i Sand Pit, och lugn ambient synthwave med klockarpeggio i Frost Cave.
 
+## Manual
+
+Spelmanualen finns som en sida i Claude (Bomb Yard NES Manual). Den beskriver alla lägen: NES-versionen för 1 och 2 spelare och webbversionens Classic mode och New enhanced mode, med kontroller för tangentbord och mobil. Sidornas källfiler ligger i `manual/project/`.
+
 ## Bygga
 
 Du behöver [cc65](https://cc65.github.io) och Python 3.

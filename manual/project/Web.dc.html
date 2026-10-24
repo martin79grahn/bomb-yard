@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The web version</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;family=Archivo:wght@400;600;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A01800}a:hover{color:#6E1000}
+</style>
+</helmet>
+<div style="width: 480px; height: 680px; box-sizing: border-box; background-color: #F3EEDF; color: #141414; font-family: 'Archivo', sans-serif; display: flex; flex-direction: column">
+  <div style="background-color: #141414; padding: 18px 28px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 6px solid #D82800">
+    <h2 style="margin: 0; font-family: 'Press Start 2P', monospace; font-size: 16px; color: #FCFCFC">WEB VERSION</h2>
+    <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; color: #BCBCBC">2 LOOKS</span>
+  </div>
+
+  <div style="flex: 1; padding: 16px 28px 0; display: flex; flex-direction: column; gap: 12px">
+    <p style="margin: 0; font-size: 14px; line-height: 1.45">Bomb Yard also runs in any web browser, on a computer or a phone. Before you start, pick a look in the menu. Your choice is remembered for next time. The rules are the same in both.</p>
+
+    <div style="display: flex; gap: 14px; align-items: center; border: 3px solid #141414; background-color: #FCFCFC; padding: 10px 12px">
+      <img src="/_blob/b2905f7e72947975f726c170f8f357ff" alt="Classic mode: pixel art from the original cart" style="width: 104px; height: 104px; image-rendering: pixelated; border: 2px solid #141414; flex-shrink: 0">
+      <div style="display: flex; flex-direction: column; gap: 5px">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 10px">CLASSIC MODE</span>
+        <span style="font-size: 13px; line-height: 1.4">The original pixel art and the same chiptune songs as the NES cart. Bit faces two Krax in each level.</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 14px; align-items: center; border: 3px solid #141414; background-color: #FCFCFC; padding: 10px 12px">
+      <img src="/_blob/12c6b18ae2a6278cf1df069c31e4cc5f" alt="New enhanced mode: Frost Cave seen from a tilted 3D angle" style="width: 160px; height: 90px; border: 2px solid #141414; flex-shrink: 0; object-fit: cover">
+      <div style="display: flex; flex-direction: column; gap: 5px">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; line-height: 1.5">NEW ENHANCED MODE</span>
+        <span style="font-size: 13px; line-height: 1.4">3D blocks seen at a tilt, glowing fire, shadows and screen shake. New monsters and modern music.</span>
+      </div>
+    </div>
+
+    <p style="margin: 0; font-size: 12px; line-height: 1.4; color: #4A463E">Enhanced music: tropical house in The Yard, desert deep house with darbuka in the Sand Pit, calm ambient synthwave in the Frost Cave.</p>
+
+    <h3 style="margin: 2px 0 0; font-family: 'Press Start 2P', monospace; font-size: 12px; color: #A01800">ENHANCED MONSTERS</h3>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start">
+        <img src="/_blob/53b1f77c826d53f57554efa124a7a881" alt="Slime" style="width: 56px; height: 56px; border: 2px solid #141414">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 9px">SLIME</span>
+        <span style="font-size: 12px; line-height: 1.35">Wanders around the quarry.</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start">
+        <img src="/_blob/cb3280daa7f590a410ef435761ec8edf" alt="Beetle" style="width: 56px; height: 56px; border: 2px solid #141414">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 9px">BEETLE</span>
+        <span style="font-size: 12px; line-height: 1.35">Charges when it spots you down a corridor.</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start">
+        <img src="/_blob/55a468e453166ac31326fac6b20a7a0f" alt="Wisp" style="width: 56px; height: 56px; border: 2px solid #141414">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 9px">WISP</span>
+        <span style="font-size: 12px; line-height: 1.35">Floats slowly after you.</span>
+      </div>
+    </div>
+    <p style="margin: 0; font-size: 12px; line-height: 1.4">The Yard: slime and beetle. Sand Pit: beetle and wisp. Frost Cave: all three.</p>
+  </div>
+
+  <div style="padding: 12px 28px 16px; display: flex; justify-content: space-between; align-items: center; font-family: 'Press Start 2P', monospace; font-size: 9px; color: #6E6A60">
+    <span>BOMB YARD</span>
+    <span>8</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":480,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bomb Yard manual cover</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;family=Archivo:wght@400;600;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#D82800}a:hover{color:#A01800}
+</style>
+</helmet>
+<div style="width: 480px; height: 680px; box-sizing: border-box; background-color: #0C0C0C; background-image: repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 24px), repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 24px); color: #FCFCFC; font-family: 'Archivo', sans-serif; display: flex; flex-direction: column; padding: 28px 32px 26px; gap: 18px; position: relative; overflow: hidden">
+  <div style="display: flex; justify-content: space-between; align-items: center">
+    <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; letter-spacing: 0.1em; color: #0C0C0C; background-color: {{accent}}; padding: 6px 8px">ACTION SERIES</span>
+    <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; color: #BCBCBC">1-2 PLAYERS</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px">
+    <h1 style="margin: 0; font-family: 'Press Start 2P', monospace; font-size: 48px; line-height: 1.05; color: #FCA044; text-shadow: 4px 4px 0 {{accent}}">BOMB</h1>
+    <h1 style="margin: 0; font-family: 'Press Start 2P', monospace; font-size: 48px; line-height: 1.05; color: #FCFCFC; text-shadow: 4px 4px 0 {{accent}}">YARD</h1>
+  </div>
+
+  <div style="position: relative; align-self: center; margin-top: 8px; border: 4px solid #FCFCFC; box-shadow: 8px 8px 0 {{accent}}; background-color: #000000; width: 336px; height: 315px">
+    <img src="/_blob/edd9cf3267fb88a7ed148296a9a61bde" alt="Bit drops a bomb in level 1 while two Krax wander the yard" style="display: block; width: 336px; height: 315px; image-rendering: pixelated">
+  </div>
+
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-top: auto">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <span style="font-family: 'Press Start 2P', monospace; font-size: 13px; color: #FCFCFC">INSTRUCTION</span>
+      <span style="font-family: 'Press Start 2P', monospace; font-size: 13px; color: #FCFCFC">BOOKLET</span>
+    </div>
+    <div style="display: flex; align-items: flex-end; gap: 6px">
+      <img src="/_blob/40675b1174f0ee5956862208332665b9" alt="Bit the bomber" style="width: 48px; height: 72px; image-rendering: pixelated">
+      <img src="/_blob/5a5d70b6ea68bbc2d1db1ddd715a8f2d" alt="Red the bomber" style="width: 48px; height: 72px; image-rendering: pixelated">
+      <img src="/_blob/996c7940da557b621dc01c3e7e42d218" alt="A Krax" style="width: 48px; height: 48px; image-rendering: pixelated">
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#D82800","options":["#D82800","#0058F8","#00A800","#6844FC"]},"$preview":{"width":480,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#D82800' };
+  }
+}
+</script>
+</body>
+</html>

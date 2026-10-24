@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Two players</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;family=Archivo:wght@400;600;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A01800}a:hover{color:#6E1000}
+</style>
+</helmet>
+<div style="width: 480px; height: 680px; box-sizing: border-box; background-color: #F3EEDF; color: #141414; font-family: 'Archivo', sans-serif; display: flex; flex-direction: column">
+  <div style="background-color: #141414; padding: 18px 28px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 6px solid #D82800">
+    <h2 style="margin: 0; font-family: 'Press Start 2P', monospace; font-size: 16px; color: #FCFCFC">TWO PLAYERS</h2>
+    <div style="display: flex; gap: 4px; align-items: flex-end">
+      <img src="/_blob/40675b1174f0ee5956862208332665b9" alt="" aria-hidden="true" style="width: 22px; height: 33px; image-rendering: pixelated">
+      <img src="/_blob/5a5d70b6ea68bbc2d1db1ddd715a8f2d" alt="" aria-hidden="true" style="width: 22px; height: 33px; image-rendering: pixelated">
+    </div>
+  </div>
+
+  <div style="flex: 1; padding: 16px 28px 0; display: flex; flex-direction: column; gap: 12px">
+    <p style="margin: 0; font-size: 14px; line-height: 1.45">While the Krax sleep, Bit's cousin <b>Red</b> challenges him to a bomb duel. Plug in controller 2, choose <b>2 PLAYERS</b> on the title screen and press START.</p>
+
+    <div style="display: flex; gap: 12px">
+      <img src="/_blob/f69348c221398a62ba398cc6b4329d33" alt="The 2 player options screen" style="width: 202px; height: 189px; image-rendering: pixelated; border: 3px solid #141414">
+      <img src="/_blob/b472909a02eb76e8e11269696702ad94" alt="A 2 player match with wins shown as P1 0/5 and P2 0/5" style="width: 202px; height: 189px; image-rendering: pixelated; border: 3px solid #141414">
+    </div>
+
+    <div style="display: flex; flex-direction: column; border-top: 3px solid #141414">
+      <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 7px 0; border-bottom: 2px solid #D8D1BE; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 9px">LEVEL</span>
+        <span style="font-size: 13px; line-height: 1.35">The Yard, Sand Pit or Frost Cave.</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 7px 0; border-bottom: 2px solid #D8D1BE; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 9px">MONSTERS</span>
+        <span style="font-size: 13px; line-height: 1.35">On: two Krax roam the arena, and whoever touches one is out.</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; padding: 7px 0; align-items: baseline">
+        <span style="font-family: 'Press Start 2P', monospace; font-size: 9px">WINS</span>
+        <span style="font-size: 13px; line-height: 1.35">Rounds needed to win the match: 3, 5 or 10.</span>
+      </div>
+    </div>
+    <p style="margin: 0; font-size: 12px; line-height: 1.4; color: #4A463E">Up/down picks a line, left/right changes it. START plays, B goes back.</p>
+
+    <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.4">
+      <li>Catch the other bomber in your blast to win the round.</li>
+      <li>Both out at once, or time runs out? It's a draw and nobody scores.</li>
+      <li>Every round is a new arena, and power-ups start over.</li>
+      <li>The top of the screen shows wins, like <b>P1 2/5</b>.</li>
+    </ul>
+  </div>
+
+  <div style="padding: 12px 28px 16px; display: flex; justify-content: space-between; align-items: center; font-family: 'Press Start 2P', monospace; font-size: 9px; color: #6E6A60">
+    <span>BOMB YARD</span>
+    <span>6</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":480,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

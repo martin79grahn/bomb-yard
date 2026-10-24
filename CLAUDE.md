@@ -20,7 +20,7 @@ Martin writes in Swedish; answer in Swedish. The README is in Swedish too.
 
 - Bomb Yard (web game): https://claude.ai/code/artifact/fc14e5ea-575c-4493-be2a-7361e9c41712 — publish `web/bomb-yard.html` to this URL.
 - Bomb Yard NES (phone player): https://claude.ai/artifact/5NaWzE5d5b9eJmkY4WbMvA — `bomb-yard.nes` embedded in a jsnes page with touch controls and an optional second controller. Rebuild and republish it whenever the ROM changes.
-- Bomb Yard NES Manual: https://claude.ai/code/artifact/3f78e4b3-4df7-4c07-91d9-e114d4948299 — still describes only 1-player mode.
+- Bomb Yard NES Manual: https://claude.ai/code/artifact/3f78e4b3-4df7-4c07-91d9-e114d4948299 — a Design canvas (11 pages: NES 1 and 2 players, web Classic and New enhanced mode, web controls). Its page sources are copied to `manual/project/`; images are `/_blob/` uploads that live only in the artifact. Edit the copies there and publish them to the artifact (root `manual`), then commit. Update it when modes or controls change.
 
 ## Working agreement
 

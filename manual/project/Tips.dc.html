@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Winning and tips</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;family=Archivo:wght@400;600;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A01800}a:hover{color:#6E1000}
+</style>
+</helmet>
+<div style="width: 480px; height: 680px; box-sizing: border-box; background-color: #F3EEDF; color: #141414; font-family: 'Archivo', sans-serif; display: flex; flex-direction: column">
+  <div style="background-color: #141414; padding: 18px 28px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 6px solid #D82800">
+    <h2 style="margin: 0; font-family: 'Press Start 2P', monospace; font-size: 16px; color: #FCFCFC">WINNING</h2>
+    <img src="/_blob/04de7ddf57e4a6efde50649de32768c2" alt="" aria-hidden="true" style="width: 32px; height: 32px; image-rendering: pixelated">
+  </div>
+
+  <div style="flex: 1; padding: 18px 28px 0; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; gap: 12px">
+      <img src="/_blob/0b233afb33588241136468e7ccd37b38" alt="Level cleared screen" style="width: 128px; height: 120px; image-rendering: pixelated; border: 3px solid #141414; flex-shrink: 0">
+      <img src="/_blob/6c948c5a0902a8b394bbf9468674c009" alt="Congratulations screen" style="width: 128px; height: 120px; image-rendering: pixelated; border: 3px solid #141414; flex-shrink: 0">
+      <p style="margin: 0; font-size: 13px; line-height: 1.4">Clear all three levels to see the <b>CONGRATULATIONS!</b> screen. Press START to play again.</p>
+    </div>
+    <p style="margin: 0; font-size: 14px; line-height: 1.45">Caught by a Krax, burned in a blast, or out of time? You try the same level again on a new quarry.</p>
+
+    <div style="border: 3px dashed #141414; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px">
+      <span style="font-family: 'Press Start 2P', monospace; font-size: 10px; color: #A01800">DEBUG MODE</span>
+      <span style="font-size: 13px; line-height: 1.4">In 1 player mode, press SELECT on the title screen until DEBUG ON shows. Bit can then walk straight through every wall. Fire and Krax still get you!</span>
+    </div>
+
+    <h3 style="margin: 2px 0 0; font-family: 'Press Start 2P', monospace; font-size: 12px; color: #A01800">BIT'S TIPS</h3>
+    <ol style="margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.4">
+      <li><b>Plan your escape</b> before you drop a bomb. Fire only goes in straight lines, so duck around a corner.</li>
+      <li><b>Blast stone early.</b> Extra bombs and fire make the Krax much easier.</li>
+      <li><b>Let the Krax come to you.</b> Drop a bomb in the hallway they are heading into, then step away.</li>
+      <li><b>Watch out for chain reactions.</b> One bomb can set off the next sooner than you think.</li>
+    </ol>
+  </div>
+
+  <div style="padding: 14px 28px 18px; display: flex; justify-content: space-between; align-items: center; font-family: 'Press Start 2P', monospace; font-size: 9px; color: #6E6A60">
+    <span>BOMB YARD</span>
+    <span>7</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":480,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How to play</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;family=Archivo:wght@400;600;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A01800}a:hover{color:#6E1000}
+</style>
+</helmet>
+<div style="width: 480px; height: 680px; box-sizing: border-box; background-color: #F3EEDF; color: #141414; font-family: 'Archivo', sans-serif; display: flex; flex-direction: column">
+  <div style="background-color: #141414; padding: 18px 28px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 6px solid #D82800">
+    <h2 style="margin: 0; font-family: 'Press Start 2P', monospace; font-size: 16px; color: #FCFCFC">HOW TO PLAY</h2>
+    <img src="/_blob/5ea9cb2aa1de4045381e34d2f1251424" alt="" aria-hidden="true" style="width: 32px; height: 32px; image-rendering: pixelated">
+  </div>
+
+  <div style="flex: 1; padding: 20px 28px 0; display: flex; flex-direction: column; gap: 16px">
+    <p style="margin: 0; font-size: 15px; line-height: 1.45"><b>Blast both Krax to clear the level.</b> Bombs send fire straight out in four directions. Fire burns for one second and stops at the first block it hits. Careful: your own fire hurts you too!</p>
+
+    <div style="display: flex; gap: 16px; align-items: flex-start">
+      <img src="/_blob/edd9cf3267fb88a7ed148296a9a61bde" alt="The play screen: level, power-ups, time and Krax count along the top" style="width: 208px; height: 195px; image-rendering: pixelated; border: 3px solid #141414; flex-shrink: 0">
+      <div style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; line-height: 1.35">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; color: #A01800">LEVEL</span>
+          <span>Which part of the quarry you are in.</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; color: #A01800">B F S</span>
+          <span>Your bombs, fire range and skates.</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; color: #A01800">TIME</span>
+          <span>Three minutes per level. At 0:00 the roof caves in.</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-family: 'Press Start 2P', monospace; font-size: 9px; color: #A01800">KRAX</span>
+          <span>How many Krax are still loose.</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px">
+      <div style="display: flex; gap: 10px; align-items: center">
+        <img src="/_blob/c1c945bd8bc6b9a8834c5b5a84a852df" alt="Concrete block" style="width: 40px; height: 40px; image-rendering: pixelated; flex-shrink: 0">
+        <span style="font-size: 13px; line-height: 1.35"><b>Concrete.</b> Can't be blasted.</span>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center">
+        <img src="/_blob/58a2f6aa45209d3c4468c693692927b1" alt="Stone block" style="width: 40px; height: 40px; image-rendering: pixelated; flex-shrink: 0">
+        <span style="font-size: 13px; line-height: 1.35"><b>Stone.</b> Cracks open and drops a power-up.</span>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center">
+        <img src="/_blob/b91ec3bc0a1135cd8d67c165a8c11379" alt="Bomb" style="width: 40px; height: 40px; image-rendering: pixelated; flex-shrink: 0">
+        <span style="font-size: 13px; line-height: 1.35"><b>Bomb.</b> Nobody can walk through it.</span>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center">
+        <img src="/_blob/5ea9cb2aa1de4045381e34d2f1251424" alt="Fire" style="width: 40px; height: 40px; image-rendering: pixelated; flex-shrink: 0">
+        <span style="font-size: 13px; line-height: 1.35"><b>Fire.</b> Sets off other bombs it touches.</span>
+      </div>
+    </div>
+
+    <div style="background-color: #141414; color: #FCFCFC; padding: 12px 14px; display: flex; gap: 12px; align-items: center">
+      <span style="font-family: 'Press Start 2P', monospace; font-size: 14px; color: #FCA044; flex-shrink: 0">0:20</span>
+      <span style="font-size: 13px; line-height: 1.4">When 20 seconds are left the music speeds up. In the last 10 seconds the clock blinks. Hurry!</span>
+    </div>
+  </div>
+
+  <div style="padding: 14px 28px 18px; display: flex; justify-content: space-between; align-items: center; font-family: 'Press Start 2P', monospace; font-size: 9px; color: #6E6A60">
+    <span>BOMB YARD</span>
+    <span>3</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":480,"height":680}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
