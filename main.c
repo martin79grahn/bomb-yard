@@ -99,6 +99,7 @@ static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_B
 static u8 px[NPL], py[NPL], pcx[NPL], pcy[NPL], pmoving[NPL], pdir[NPL], pleft[NPL], pfrac[NPL];
 static u8 pspeed[NPL], pups[NPL], pfire[NPL], pbombs[NPL], pactive[NPL];
 static s8 pdx[NPL], pdy[NPL];
+static u8 pbuf[NPL], pbuft[NPL];   /* a direction pressed a moment ago, and frames left to take it */
 static u8 palive[NPL], pdeath[NPL], panim[NPL], pframe[NPL], ppending[NPL], pburned[NPL];
 static u8 pl;                 /* the player being updated */
 static u8 nplayers;           /* 1 = vs the Krax, 2 = versus */
@@ -138,6 +139,7 @@ static u8 i, j, k, t, c;      /* scratch */
 static const s8 DX[4] = { -1, 1, 0, 0 };
 static const s8 DY[4] = { 0, 0, -1, 1 };
 static const s8 DSTEP[4] = { -1, 1, -GW, GW };
+static const u8 DBTN[4] = { BTN_LEFT, BTN_RIGHT, BTN_UP, BTN_DOWN };
 static const u8 BACK[4] = { 1, 0, 3, 2 };
 
 /* bomber animation (frames are the top-left sprite tile of a 2 x 3 block) */
@@ -383,6 +385,10 @@ static void jingle_frame(void) {
 }
 
 /* ---------- cell drawing ---------- */
+/* explosion tile by the neighbouring flames (bit 0 left, 1 right, 2 up, 3 down) */
+static const u8 FLAME_PIECE[16] = {
+  0x8E, 0x88, 0x86, 0x82, 0x8C, 0x80, 0x80, 0x80, 0x8A, 0x80, 0x80, 0x80, 0x84, 0x80, 0x80, 0x80
+};
 static void mark(u8 ci) {
   if (flame[ci] & 0x80) return;
   if (((dq_tail + 1) & (DQ - 1)) == dq_head) return;   /* queue full: drop (very rare) */
@@ -393,7 +399,11 @@ static void mark(u8 ci) {
 
 /* tile + palette for a cell: base tile in t, palette in c */
 static void cell_look(u8 ci) {
-  if (FLAME(ci)) { t = 0x48; c = 2; }
+  if (FLAME(ci)) {
+    /* a beam piece joined to the neighbouring flames, rounded where the beam ends */
+    t = (FLAME(ci - 1) ? 1 : 0) | (FLAME(ci + 1) ? 2 : 0) | (FLAME(ci - GW) ? 4 : 0) | (FLAME(ci + GW) ? 8 : 0);
+    t = FLAME_PIECE[t]; c = 2;
+  }
   else if (BOMB(ci)) { t = 0x46; c = 3; }
   else if (IS_LIFE(ci)) { t = 0x2C; c = 3; }
   else if (ITEM(ci) == IT_SHOE) { t = 0x4A; c = 3; }
@@ -525,11 +535,19 @@ static void hud_wins(u8 p) {
 }
 
 /* ---------- bombs and flames ---------- */
+/* a flame that comes or goes changes the look of the flames next to it */
+static void mark_flame_around(u8 ci) {
+  if (FLAME(ci - 1)) mark(ci - 1);
+  if (FLAME(ci + 1)) mark(ci + 1);
+  if (FLAME(ci - GW)) mark(ci - GW);
+  if (FLAME(ci + GW)) mark(ci + GW);
+}
 static void add_flame(u8 ci) {
   if (!FLAME(ci)) { if (fcount < MAX_FLAMES) flist[fcount++] = ci; else return; }
   flame[ci] = (flame[ci] & 0x80) | FLAME_TIME;
   SET_ITEM(ci, 0);
   mark(ci);
+  mark_flame_around(ci);
 }
 
 static void blast_line(u8 start, u8 range, u8 d) {
@@ -541,7 +559,7 @@ static void blast_line(u8 start, u8 range, u8 d) {
       cell[ci] = FLOOR;
       add_flame(ci);
       t = rand8();
-      if (nplayers == 1 && t < 12) { SET_ITEM(ci, IT_SHOE); cell[ci] |= TUFT; }   /* an extra life, now and then */
+      if (nplayers == 1 && t < 20) { SET_ITEM(ci, IT_SHOE); cell[ci] |= TUFT; }   /* an extra life, now and then */
       else SET_ITEM(ci, t < 92 ? IT_SHOE : t < 174 ? IT_FIRE : IT_BOMB);   /* shows when the fire is out */
       return;
     }
@@ -582,29 +600,51 @@ static void update_bombs(void) {
     c = flist[k];
     if ((--flame[c] & 0x7F) == 0) {
       mark(c);
+      mark_flame_around(c);
       flist[k] = flist[--fcount];
     } else ++k;
   }
 }
 
 /* ---------- players ---------- */
+/* can the player step from its cell in direction d? */
+static u8 can_go(u8 d) {
+  u8 nx = pcx[pl] + DX[d], ny = pcy[pl] + DY[d];
+  return walkable(pcy[pl] * GW + pcx[pl] + DSTEP[d])
+      || (debug && nplayers == 1 && nx >= 1 && nx <= GW - 2 && ny >= 1 && ny <= GH - 2);
+}
+
+/* the direction to go from a cell centre: one pressed a moment ago if it is open, else a held
+   one, turning before going straight on */
 static u8 want_dir(void) {
-  u8 p = pl ? pad2 : pad;
-  if (p & BTN_LEFT) return 0;
-  if (p & BTN_RIGHT) return 1;
-  if (p & BTN_UP) return 2;
-  if (p & BTN_DOWN) return 3;
+  u8 p = pl ? pad2 : pad, d;
+  if (pbuft[pl] && can_go(pbuf[pl])) return pbuf[pl];
+  for (d = 0; d < 4; ++d) if ((p & DBTN[d]) && d != pdir[pl] && can_go(d)) return d;
+  for (d = 0; d < 4; ++d) if (p & DBTN[d]) return d;
   return 0xFF;
 }
 
 static void try_step(u8 d) {
-  u8 ci, nx, ny;
   if (d == 0xFF) { pframe[pl] = 0; panim[pl] = 0; return; }
   pdir[pl] = d;
-  ci = pcy[pl] * GW + pcx[pl] + DSTEP[d];
-  nx = pcx[pl] + DX[d]; ny = pcy[pl] + DY[d];
-  if (walkable(ci) || (debug && nplayers == 1 && nx >= 1 && nx <= GW - 2 && ny >= 1 && ny <= GH - 2)) {
+  if (can_go(d)) {
     pmoving[pl] = 1; pdx[pl] = DX[d]; pdy[pl] = DY[d]; pleft[pl] = 16;
+    if (d == pbuf[pl]) pbuft[pl] = 0;
+  }
+}
+
+/* while moving: turn back at once, or turn late into a side way just passed */
+static void steer(void) {
+  u8 d = pbuf[pl];
+  if (!pbuft[pl] || d == pdir[pl]) return;
+  if (DX[d] == -pdx[pl] && DY[d] == -pdy[pl]) {
+    pcx[pl] += pdx[pl]; pcy[pl] += pdy[pl];        /* the cell we were heading for is now behind */
+    pdx[pl] = DX[d]; pdy[pl] = DY[d]; pleft[pl] = 16 - pleft[pl];
+    pdir[pl] = d; pbuft[pl] = 0;
+  } else if (pleft[pl] >= 11 && can_go(d)) {
+    px[pl] = pcx[pl] << 4; py[pl] = pcy[pl] << 4;  /* back to the centre, at most 5 pixels */
+    pdx[pl] = DX[d]; pdy[pl] = DY[d]; pleft[pl] = 16;
+    pdir[pl] = d; pbuft[pl] = 0;
   }
 }
 
@@ -632,7 +672,11 @@ static void collect(void) {
 static void update_player(void) {
   u8 s;
   if (!palive[pl]) { if (pdeath[pl]) --pdeath[pl]; return; }
-  if ((pl ? pad2_new : pad_new) & (BTN_A | BTN_B)) ppending[pl] = 1;
+  s = pl ? pad2_new : pad_new;
+  if (s & (BTN_A | BTN_B)) ppending[pl] = 1;
+  if (pbuft[pl]) --pbuft[pl];
+  for (k = 0; k < 4; ++k) if (s & DBTN[k]) { pbuf[pl] = k; pbuft[pl] = 14; }
+  if (pmoving[pl]) steer();
   if (!pmoving[pl]) {
     if (ppending[pl]) { place_bomb(); ppending[pl] = 0; }
     try_step(want_dir());

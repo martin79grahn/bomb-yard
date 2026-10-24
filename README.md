@@ -26,6 +26,10 @@ Varje bana har egen musik: djungeltrummor med bongotrummor i The Yard, orientali
 
 Spelare 1 använder handkontroll 1 och har den vita dräkten. Spelare 2 använder handkontroll 2 och har den röda.
 
+Styrningen hjälper dig in i gångarna, både på NES och i webben. Trycker du en riktning en liten stund innan du når en korsning, svänger figuren dit när den kommer fram. Trycker du lite för sent, upp till fem pixlar efter korsningen, dras figuren tillbaka och svänger ändå. Motsatt riktning vänder direkt, mitt i ett steg.
+
+Explosionerna ritas som sammanhängande strålar som bara är rundade i ändarna.
+
 ## Webbversionen
 
 `web/bomb-yard.html` är originalspelet för webbläsaren, som hela spelet i en enda fil. Öppna den i en webbläsare på dator eller mobil. Den har tvåspelarläge på samma telefon med knappar för båda, en större bana på 16×16 rutor och knappar på skärmen för mobilen. Musiken är samma låtar som i NES-versionen.

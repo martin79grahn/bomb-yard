@@ -6,6 +6,9 @@ Pattern table 0 ($0000) holds background tiles:
   1..42    font (see FONT below), white on colour 3
   $2C,$2D,$3C,$3D  the extra-life heart (16 x 16, item palette: 1 outline, 2 shine, 3 fill)
   $40-$7F  the cart's map tiles, sprite-sheet rows 4-7, at the same index as in PICO-8
+  $80-$9F  explosion pieces, 16 x 16 each (flame palette: 1 red edge, 2 orange, 3 yellow core):
+           centre $80, across $82, up-down $84, ends rounded to the left $86, right $88,
+           up $8A, down $8C, and a lone ball $8E
 Pattern table 1 ($1000) holds sprites:
   $00-$2F  the bomber frames (sheet rows 0-2)
   $30,$31  confetti specks
@@ -142,6 +145,41 @@ heart = heart_pixels()
 for i, t in enumerate((0x2C, 0x2D, 0x3C, 0x3D)):
     ox, oy = (i & 1) * 8, (i >> 1) * 8
     bg[t] = encode([row[ox:ox + 8] for row in heart[oy:oy + 8]])
+
+# explosion pieces: a beam with a red edge, orange body and yellow core, rounded at the ends
+def flame_piece(left, right, up, down):
+    """16x16 pixels for a flame cell joined to its neighbours on the given sides."""
+    px = [[0] * 16 for _ in range(16)]
+    c = 7.5
+    for y in range(16):
+        for x in range(16):
+            # distance to the nearest point of the beam's centre line
+            best = ((x - c) ** 2 + (y - c) ** 2) ** 0.5           # the middle
+            if left and x <= c:
+                best = min(best, abs(y - c))
+            if right and x >= c:
+                best = min(best, abs(y - c))
+            if up and y <= c:
+                best = min(best, abs(x - c))
+            if down and y >= c:
+                best = min(best, abs(x - c))
+            r = 6.6 if (left or right or up or down) else 6.2
+            if best <= r * 0.42:
+                px[y][x] = 3
+            elif best <= r * 0.72:
+                px[y][x] = 2
+            elif best <= r:
+                px[y][x] = 1
+    return px
+
+
+PIECES = [(1, 1, 1, 1), (1, 1, 0, 0), (0, 0, 1, 1), (0, 1, 0, 0), (1, 0, 0, 0), (0, 0, 0, 1), (0, 0, 1, 0), (0, 0, 0, 0)]
+for k, sides in enumerate(PIECES):
+    piece = flame_piece(*sides)
+    base = 0x80 + k * 2
+    for i, t in enumerate((base, base + 1, base + 16, base + 17)):
+        ox, oy = (i & 1) * 8, (i >> 1) * 8
+        bg[t] = encode([row[ox:ox + 8] for row in piece[oy:oy + 8]])
 
 spr = [bytes(16)] * 256
 for t in list(range(0x00, 0x0E)) + list(range(0x10, 0x1E)) + list(range(0x20, 0x2E)):

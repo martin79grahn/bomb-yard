@@ -258,7 +258,7 @@ function spr(sheet, n, x, y, w = 1, h = 1, flip = false, c = ctx){
 }
 
 // ---------- constants from the cart ----------
-const BOMB_SPR = 70, EXPLOSION_SPR = 72, SHOE_SPR = 74, BOMB_POWER_SPR = 76, FIRE_POWER_SPR = 96;
+const BOMB_SPR = 70, SHOE_SPR = 74, BOMB_POWER_SPR = 76, FIRE_POWER_SPR = 96;
 const CEMENT = 0x40, STONE = 0x42, GRASS = 0x44;
 const FUSE = 180, FLAME_TIME = 60, MAX_SPEEDUPS = 4, SPEED_STEP = 0.25;   // 4 shoes take you from 1 to 2 px/frame (8 frames per cell)
 const ANIM = {
@@ -447,6 +447,28 @@ function setCellTiles(cx, cy, t){ for (let oy = 0; oy < 2; oy++) for (let ox = 0
 function bombAt(cx, cy){ return G.bombs.find(b => b.cx === cx && b.cy === cy); }
 function flameAt(cx, cy){ return G.flames.find(f => f.cx === cx && f.cy === cy); }
 function pickupAt(cx, cy){ return G.pickups.find(p => p.cx === cx && p.cy === cy); }
+// which neighbours of a flame burn too: bit 0 left, 1 right, 2 up, 3 down
+function flameSides(f){
+  return (flameAt(f.cx - 1, f.cy) ? 1 : 0) | (flameAt(f.cx + 1, f.cy) ? 2 : 0) | (flameAt(f.cx, f.cy - 1) ? 4 : 0) | (flameAt(f.cx, f.cy + 1) ? 8 : 0);
+}
+// 16x16 pixel-art flame piece joined to the given sides: red edge, orange, yellow core, white heart
+const FLAME_PIECES = [];
+function flamePiece(sides){
+  if (FLAME_PIECES[sides]) return FLAME_PIECES[sides];
+  const cv = document.createElement("canvas"); cv.width = cv.height = 16;
+  const g = cv.getContext("2d"), c = 7.5, r = sides ? 6.6 : 6.2;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    let d = Math.hypot(x - c, y - c);              // distance to the beam's centre line
+    if (sides & 1 && x <= c) d = Math.min(d, Math.abs(y - c));
+    if (sides & 2 && x >= c) d = Math.min(d, Math.abs(y - c));
+    if (sides & 4 && y <= c) d = Math.min(d, Math.abs(x - c));
+    if (sides & 8 && y >= c) d = Math.min(d, Math.abs(x - c));
+    const col = d <= r * 0.18 ? 7 : d <= r * 0.42 ? 10 : d <= r * 0.72 ? 9 : d <= r ? 8 : -1;
+    if (col >= 0) { g.fillStyle = PAL[col]; g.fillRect(x, y, 1, 1); }
+  }
+  return FLAME_PIECES[sides] = cv;
+}
+
 function walkable(cx, cy){ return cx >= 0 && cy >= 0 && cx < N && cy < N && cellType(cx, cy) === "floor" && !bombAt(cx, cy); }
 
 function makePlayer(id, cx, cy, cpu){
@@ -587,22 +609,53 @@ function collect(p){
   SFX.pickup(); renderHud();
 }
 
-function tryStep(p, d){
-  if (!d) { p.frame = 0; p.animT = 0; return; }
-  p.dir = d;
+function canGo(p, d){
   const [dx, dy] = DIRS[d];
   const nx = p.cx + dx, ny = p.cy + dy;
   const ghost = debug && p.id === 0 && nx >= 0 && ny >= 0 && nx < N && ny < N;
-  if (ghost || walkable(nx, ny)) { p.moving = true; p.dx = dx; p.dy = dy; p.left = 16; }
+  return ghost || walkable(nx, ny);
+}
+
+function tryStep(p, d){
+  if (!d) { p.frame = 0; p.animT = 0; return; }
+  p.dir = d;
+  if (canGo(p, d)) {
+    const [dx, dy] = DIRS[d];
+    p.moving = true; p.dx = dx; p.dy = dy; p.left = 16;
+    if (!p.cpu && d === tap[p.id]) tap[p.id] = null;
+  }
+}
+
+// the direction to go from a cell centre: one pressed a moment ago if it is open (a tap always
+// moves one cell, even if released before the next frame), else the newest held one that is open
+function wantDir(p){
+  const b = tap[p.id], o = order[p.id];
+  if (b && canGo(p, b)) return b;
+  for (let i = o.length - 1; i >= 0; i--) if (canGo(p, o[i])) return o[i];
+  return humanDir(p.id) || b;
+}
+
+// while moving: turn back at once, or turn late into a side way just passed
+function steer(p){
+  const d = tap[p.id];
+  if (!d || d === p.dir) return;
+  const [dx, dy] = DIRS[d];
+  if (dx === -p.dx && dy === -p.dy) {
+    p.cx += p.dx; p.cy += p.dy;                    // the cell we were heading for is now behind
+    p.dx = dx; p.dy = dy; p.left = 16 - p.left; p.dir = d; tap[p.id] = null;
+  } else if (p.left >= 11 && canGo(p, d)) {
+    p.x = p.cx*16; p.y = p.cy*16;                  // back to the centre, at most 5 pixels
+    p.dx = dx; p.dy = dy; p.left = 16; p.dir = d; tap[p.id] = null;
+  }
 }
 
 function updatePlayer(p){
   if (!p.alive) { if (p.deathT > 0) p.deathT--; return; }
+  if (!p.cpu && tap[p.id] && --tapT[p.id] <= 0) tap[p.id] = null;
+  if (!p.cpu && p.moving) steer(p);
   if (!p.moving) {
     if (p.pending) { placeBomb(p); p.pending = false; }
-    // a tap always moves one cell, even if released before the next frame
-    tryStep(p, p.cpu ? cpuThink(p) : (humanDir(p.id) || tap[p.id]));
-    tap[p.id] = null;
+    tryStep(p, p.cpu ? cpuThink(p) : wantDir(p));
   }
   if (p.moving) {
     const s = Math.min(p.speed, p.left);
@@ -612,7 +665,7 @@ function updatePlayer(p){
       p.moving = false; p.cx = Math.round(p.x/16); p.cy = Math.round(p.y/16); p.x = p.cx*16; p.y = p.cy*16;
       collect(p);
       if (p.pending) { placeBomb(p); p.pending = false; }
-      tryStep(p, p.cpu ? cpuThink(p) : humanDir(p.id));   // keep walking without a stall frame
+      tryStep(p, p.cpu ? cpuThink(p) : wantDir(p));   // keep walking without a stall frame
     }
   }
 }
@@ -803,8 +856,9 @@ function humanDir(id){
   for (let i = o.length - 1; i >= 0; i--) return o[i];
   return null;
 }
-const tap = [null, null];
-function pressDir(id, d){ tap[id] = d; const o = order[id]; const i = o.indexOf(d); if (i >= 0) o.splice(i, 1); o.push(d); }
+const tap = [null, null], tapT = [0, 0];   // a direction pressed a moment ago, and frames left to take it
+const TAP_FRAMES = 14;
+function pressDir(id, d){ tap[id] = d; tapT[id] = TAP_FRAMES; const o = order[id]; const i = o.indexOf(d); if (i >= 0) o.splice(i, 1); o.push(d); }
 function releaseDir(id, d){ const o = order[id]; const i = o.indexOf(d); if (i >= 0) o.splice(i, 1); }
 function pressBomb(id){ if (phase === "play" && G) { const p = G.players[id]; if (p && p.alive && !p.cpu) p.pending = true; } }
 
@@ -907,7 +961,7 @@ function togglePause(){
 
 function start(m, dbg = false){
   audio();
-  mode = m; debug = m === "cpu" && dbg; level = 1; roundNo = 0; carry = null; wins = [0, 0]; lives = opts.lives; order[0].length = 0; order[1].length = 0;
+  mode = m; debug = m === "cpu" && dbg; level = 1; roundNo = 0; carry = null; wins = [0, 0]; lives = opts.lives; order[0].length = 0; order[1].length = 0; tap[0] = tap[1] = null;
   document.body.classList.toggle("two", m === "2p");
   newRound(); hideOverlay(); phase = "play";
   statusEl.textContent = debug ? "Debug: you walk through walls · P or Esc pauses" : m === "cpu" ? "1P vs monsters · P or Esc pauses · M mutes" : "2 players · P or Esc pauses · M mutes";
@@ -991,7 +1045,7 @@ function draw(){
     const flash = b.fuse < 60 && Math.floor(b.fuse / 5) % 2 === 0;
     spr(flash ? SHEET_FLASH : SHEET, BOMB_SPR, b.cx*16, b.cy*16, 2, 2);
   }
-  for (const f of G.flames) spr(SHEET, EXPLOSION_SPR, f.cx*16, f.cy*16, 2, 2);
+  for (const f of G.flames) ctx.drawImage(flamePiece(flameSides(f)), f.cx*16, f.cy*16);
   for (const m of G.monsters) {
     if (!m.alive && m.deathT <= 0) continue;
     if (!m.alive && Math.floor(m.deathT / 3) % 2) continue;
@@ -1403,20 +1457,33 @@ function drawPickup(c, pk, t){
   c.restore();
 }
 
+// a blast as thick beams between neighbouring flames, rounded only where a beam ends
+const FLAME_LAYERS = [   // width, colour; the first is a soft glow
+  [70, "rgba(255,110,30,0.22)"], [46, "#d8320c"], [36, "#ff7a1e"], [24, "#ffd25a"], [10, "#fffbe6"],
+];
 function drawFlames(c, t){
-  c.save();
-  for (const pass of [0, 1]) {
-    c.globalCompositeOperation = pass ? "lighter" : "source-over";
-    for (const f of G.flames) {
-      const [x, y] = cellCenter(f.cx, f.cy), k = f.t / FLAME_TIME;
-      const r = (22 + Math.sin(t * 0.05 + f.cx * 3 + f.cy) * 3) * (0.55 + 0.45 * k);
-      const g = c.createRadialGradient(x, y - 12, 1, x, y - 12, r * (pass ? 1.7 : 1.15));
-      if (pass) { g.addColorStop(0, `rgba(255,170,60,${0.35 * k})`); g.addColorStop(1, "rgba(255,80,20,0)"); }
-      else {
-        g.addColorStop(0, `rgba(255,255,235,${k})`); g.addColorStop(0.25, `rgba(255,220,90,${0.95 * k})`);
-        g.addColorStop(0.6, `rgba(255,120,30,${0.85 * k})`); g.addColorStop(1, "rgba(220,40,10,0)");
-      }
-      c.fillStyle = g; c.beginPath(); c.ellipse(x, y - 12, r * (pass ? 1.7 : 1.15), r * (pass ? 1.3 : 0.95), 0, 0, Math.PI * 2); c.fill();
+  if (!G.flames.length) return;
+  const at = new Map(G.flames.map(f => [f.cx + f.cy*N, f]));
+  const groups = new Map();      // flames that fade together are stroked as one path, so joins don't double up
+  for (const f of G.flames) {
+    const k = Math.ceil(f.t / FLAME_TIME * 8) / 8;
+    if (!groups.has(k)) groups.set(k, []);
+    const [x, y] = cellCenter(f.cx, f.cy), segs = groups.get(k);
+    segs.push([x, y - 12, x, y - 12]);
+    for (const [dx, dy] of [[1, 0], [0, 1]]) {
+      const g = at.get(f.cx + dx + (f.cy + dy)*N);
+      if (g) { const [x2, y2] = cellCenter(g.cx, g.cy); segs.push([x, y - 12, x2, y2 - 12]); }
+    }
+  }
+  c.save(); c.lineCap = "round"; c.lineJoin = "round";
+  const flick = 1 + Math.sin(t * 0.04) * 0.05;
+  for (const [w, colour] of FLAME_LAYERS) {
+    c.strokeStyle = colour;
+    for (const [k, segs] of groups) {
+      c.lineWidth = w * (0.45 + 0.55 * k) * flick;
+      c.beginPath();
+      for (const [x1, y1, x2, y2] of segs) { c.moveTo(x1, y1); c.lineTo(x2 + (x1 === x2 && y1 === y2 ? 0.01 : 0), y2); }
+      c.stroke();
     }
   }
   c.restore();
