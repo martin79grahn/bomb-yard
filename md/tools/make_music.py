@@ -39,6 +39,12 @@ PATCH = {
                     (0x01, 0x22, 0x1F, 0x04, 0x00, 0x18), (0x01, 0x08, 0x14, 0x02, 0x01, 0x28)]),
     "brass": (0x34, [(0x01, 0x1A, 0x15, 0x05, 0x00, 0x17), (0x01, 0x0C, 0x13, 0x03, 0x01, 0x27),
                      (0x02, 0x22, 0x15, 0x05, 0x00, 0x17), (0x01, 0x10, 0x13, 0x03, 0x01, 0x27)]),
+    # pipe organ: four sine drawbars (8', 4', 2', 16') all heard at once, held while the key is down
+    "organ": (0x07, [(0x01, 0x14, 0x1F, 0x00, 0x00, 0x07), (0x02, 0x1C, 0x1F, 0x00, 0x00, 0x07),
+                     (0x04, 0x24, 0x1F, 0x00, 0x00, 0x07), (0x00, 0x1A, 0x1F, 0x00, 0x00, 0x07)]),
+    # voices singing "aah": two soft, slightly detuned pairs that swell in
+    "choir": (0x2C, [(0x01, 0x2C, 0x10, 0x02, 0x00, 0x17), (0x31, 0x0E, 0x0D, 0x01, 0x00, 0x18),
+                     (0x03, 0x34, 0x10, 0x02, 0x00, 0x17), (0x71, 0x10, 0x0D, 0x01, 0x00, 0x18)]),
 }
 SLOT = (0x0, 0x8, 0x4, 0xC)                     # register offsets of operators 1-4
 CARRIERS = {0: (3,), 1: (3,), 2: (3,), 3: (3,), 4: (1, 3), 5: (1, 2, 3), 6: (1, 2, 3), 7: (0, 1, 2, 3)}
@@ -276,6 +282,10 @@ TRI_YARD = [45,0,67,67, 60,0,67,0, 45,0,67,60, 67,60,60,0,  45,0,67,67, 60,0,67,
             45,0,67,67, 60,0,67,0, 45,0,67,60, 67,60,60,0,  45,67,67,60, 60,67,60,67, 72,72,67,67, 60,60,45,45]
 LEAD_SAND = [74,0,0,75, 74,0,72,0, 70,0,72,0, 69,0,0,0,  66,0,67,0, 69,0,70,69, 67,0,66,0, 63,0,62,0,
              62,0,66,0, 67,0,69,0, 70,0,69,70, 72,0,70,69, 67,69,67,66, 63,0,66,0, 62,0,0,0, 0,0,1,0]
+LEAD_LAVA = [62,0,0,0, 0,0,0,0, 63,0,0,0, 62,0,0,0,      0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+             68,0,0,0, 0,0,67,0, 65,0,0,0, 63,0,0,0,     62,0,0,0, 0,0,0,0, 61,0,0,0, 62,0,1,0]
+LEAD_CLOUD = [72,0,0,0, 76,0,0,0, 79,0,0,0, 77,0,76,0,    74,0,0,0, 0,0,0,0, 76,0,0,0, 0,0,0,0,
+              77,0,0,0, 76,0,74,0, 72,0,0,0, 74,0,0,0,    71,0,0,0, 0,0,0,0, 72,0,0,0, 0,0,0,0]
 LEAD_FROST = [76,0,0,0, 83,0,0,0, 81,0,0,0, 0,0,0,0,      79,0,0,0, 78,0,0,0, 74,0,0,0, 0,0,0,0,
               76,0,0,0, 83,0,0,0, 88,0,0,0, 86,0,0,0,     83,0,0,0, 81,0,79,0, 78,0,0,0, 0,0,0,0]
 SHK, DUM, TEK = "shaker", "dum", "tek"
@@ -372,6 +382,49 @@ def frost():
     return s
 
 
+def lava():
+    """Lava Peak: a dark dirge in D phrygian. Ghostly voices, a tolling bell, a heartbeat."""
+    s = Song(10, 128)
+    lead = from_steps(LEAD_LAVA, vol=1.0, maxlen=12)
+    for n in lead:
+        n.vib = 0.3
+    s.track(0, "choir", "C", 1.0).extend(repeat(lead, 2, 64))
+    s.track(4, "choir", "L", 0.55).extend(shift(repeat(lead, 2, 64), 4, -12, 0.8))   # a lower voice answers
+    bass = []
+    for rep in range(2):
+        for bar, (r1, r2) in enumerate(((38, 39), (38, 39), (44, 43), (38, 37))):
+            b0 = rep * 64 + bar * 16
+            bass += [Note(b0, r1 - 12, 6, 1.0), Note(b0 + 6, r1 - 12, 2, 0.8), Note(b0 + 8, r2 - 12, 4, 0.9), Note(b0 + 12, r1 - 12, 4, 0.85)]
+    s.track(1, "bass", "C", 1.0).extend(bass)
+    # a big bell tolls at the start of every bar, a tritone above the bass in the third
+    tolls = [50, 51, 56, 49]
+    s.track(2, "bell", "R", 0.8).extend([Note(rep * 64 + bar * 16, n, 16, 0.9) for rep in range(2) for bar, n in enumerate(tolls)])
+    # heartbeat: two low thumps per bar
+    s.track(3, "drum", "C", 1.0).extend([Note(i + d, 33, 2, 1.0 if d == 0 else 0.8, slide=-0.6) for i in range(0, 128, 16) for d in (0, 2)])
+    s.noise += [(8, "wind"), (40, "wind"), (72, "wind"), (104, "wind")]
+    return s
+
+
+def cloud():
+    """Cloud Nine: a hymn in C major. Organ chords and pedals, a choir sings the tune."""
+    s = Song(9, 128)
+    lead = from_steps(LEAD_CLOUD, vol=1.0, maxlen=8)
+    for n in lead:
+        n.vib = 0.12
+    s.track(0, "choir", "C", 1.0).extend(repeat(lead, 2, 64))
+    # organ: three chord voices per bar and pedal notes, C G F G
+    chords = [(60, 64, 67), (59, 62, 67), (57, 60, 65), (59, 62, 65)]
+    pedals = [(36, 40), (43, 43), (41, 45), (43, 36)]
+    for v, ch in enumerate((2, 3, 4)):
+        notes = [Note(rep * 64 + bar * 16, chords[bar][v], 16, 0.9) for rep in range(2) for bar in range(4)]
+        s.track(ch, "organ", "C" if v == 1 else ("L" if v == 0 else "R"), 0.8).extend(notes)
+    s.track(1, "organ", "C", 0.9).extend([Note(rep * 64 + bar * 16 + half * 8, pedals[bar][half], 8, 0.9)
+                                          for rep in range(2) for bar in range(4) for half in range(2)])
+    # second time round a high descant floats over the choir on the PSG
+    s.tone(0, 0.35).extend(shift(lead, 64, 12, 0.5))
+    return s
+
+
 def boss_song():
     s = Song(6, 128)
     # C minor: Cm Ab Bb G, a driving bass and brass stabs
@@ -443,6 +496,8 @@ SONGS = {
     "yard": yard(),
     "sand": sand(),
     "frost": frost(),
+    "lava": lava(),
+    "cloud": cloud(),
     "boss": boss_song(),
     "clear": jingle([(0, 72, 1), (1, 76, 1), (2, 79, 1), (3, 84, 2), (6, 79, 1), (7, 84, 8)],
                     [(0, 48, 3), (3, 43, 3), (6, 48, 9)], rate=6, steps=17),

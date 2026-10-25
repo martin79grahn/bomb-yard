@@ -2,11 +2,11 @@
 
 En NES-version av Bomb Yard med två lägen:
 
-- **1 spelare:** du är Bit och ska spränga de två Kraxarna i tre levels, The Yard, Sand Pit och Frost Cave. Varje level har tre minuter på klockan. Innan spelet väljer du hur många liv du har, 3, 5 eller 10, och vilken figur du vill spela som: Bit (vit), Ruby (röd), Sky (blå) eller Nova (gul). Varje gång du dör förlorar du ett liv och försöker banan igen, och när liven är slut är det game over.
+- **1 spelare:** du är Bit och ska spränga de två Kraxarna i fem levels: The Yard, Sand Pit, Frost Cave, Lava Peak och Cloud Nine. Varje level har tre minuter på klockan. Innan spelet väljer du hur många liv du har, 3, 5 eller 10, och vilken figur du vill spela som: Bit (vit), Ruby (röd), Sky (blå) eller Nova (gul). Varje gång du dör förlorar du ett liv och försöker banan igen, och när liven är slut är det game over.
 
   Mellan level 1 och level 2 kommer en **bossbana**. Bossen är en lila bombare som kan lägga 2 bomber åt gången med sprängräckvidd 5, och den behöver 3 träffar för att dö. Efter 2 träffar blir den rödare och lite snabbare och kan lägga 3 bomber åt gången. Den blinkar en stund efter varje träff och kan inte skadas då. Att nudda bossen är ofarligt, det är bomberna du ska akta dig för. Bossen skadas inte av sina egna bomber, bara av dina.
 - **2 spelare:** spräng varandra på en slumpad bana. Spelare 2 (röd) använder handkontroll 2. Tar tiden slut blir rundan oavgjord. Innan matchen väljer du på en inställningsskärm:
-  - **Level:** The Yard, Sand Pit eller Frost Cave.
+  - **Level:** The Yard, Sand Pit, Frost Cave, Lava Peak eller Cloud Nine.
   - **Monsters:** på eller av. När de är på går två Kraxar runt på banan, och den som nuddar en är ute.
   - **Wins:** hur många vunna rundor som krävs för att vinna matchen, 3, 5 eller 10.
   - **P1 och P2:** vilken figur varje spelare har, Bit, Ruby, Sky eller Nova. Två spelare kan inte välja samma.
@@ -15,7 +15,7 @@ Under stenarna på varje bana göms bomb-power-ups, eld-power-ups och skor, och 
 
 Överst på skärmen står `B` för antal bomber, `F` för sprängräckvidd och `S` för hur många skor (fart) du har plockat. I 1-spelarläget står också hur många liv du har kvar och på bossbanan hur många träffar bossen tål (`BOSS 3`), och i 2-spelarläget vunna rundor av hur många som krävs, till exempel `P1 2/5`.
 
-Varje bana har egen musik: djungeltrummor med bongotrummor i The Yard, orientalisk musik i Sand Pit (skalan D hijaz, med vibrato och maqsum-rytm) och lugn, atmosfärisk musik med eko och vind i Frost Cave. När det är 20 sekunder kvar går musiken upp ett halvt tonsteg och blir snabbare, och en klocka börjar ticka.
+Varje bana har egen musik: djungeltrummor med bongotrummor i The Yard, orientalisk musik i Sand Pit (skalan D hijaz, med vibrato och maqsum-rytm) lugn, atmosfärisk musik med eko och vind i Frost Cave, en långsam, dyster och lite läskig klagosång i frygisk skala med mullrande bas och hjärtslag på Lava Peak, och en psalm som spelas som en kyrkorgel på Cloud Nine. Lava Peak har svart och glödande röd sten, Cloud Nine himmelsblå moln och gyllene block. När det är 20 sekunder kvar går musiken upp ett halvt tonsteg och blir snabbare, och en klocka börjar ticka.
 
 ## Spela
 
@@ -46,10 +46,10 @@ Knapparna **P1** och **P2** i menyn väljer figur: Bit, Ruby, Sky eller Nova. Va
 I webbversionens meny väljer du utseende innan du startar. Valet sparas till nästa gång.
 
 - **Classic mode:** originalet med PICO-8-cartens pixelgrafik och chiptune-musiken.
-- **New enhanced mode:** samma regler i ny grafik, sedd snett ovanifrån med lite isometrisk vinkel. Blocken är tredimensionella, och det finns skuggor, glödande eld, partiklar och skakande skärm vid explosioner. Varje bana har eget tema: grönska i The Yard, sandsten i Sand Pit och is och snö i Frost Cave.
+- **New enhanced mode:** samma regler i ny grafik, sedd snett ovanifrån med lite isometrisk vinkel. Blocken är tredimensionella, och det finns skuggor, glödande eld, partiklar och skakande skärm vid explosioner. Varje bana har eget tema: grönska i The Yard, sandsten i Sand Pit is och snö i Frost Cave, svart lavasten med glödande sprickor och uppstigande gnistor på Lava Peak, och moln, gyllene block och glittrande ljus på Cloud Nine, där monstren har vingar och gloria som änglar.
   - **Luta banan:** dra med fingret (eller musen på dator) på spelplanen för att ändra vinkeln. Upp och ner gör att du ser banan brantare uppifrån eller mer från sidan, vänster och höger ändrar snedheten. Dubbeltryck eller dubbelklicka för att återställa. Vinkeln sparas till nästa gång, och knapparna på mobilen fungerar som vanligt medan du drar.
-  - **Nya monster:** slemklumpar som vandrar runt, skalbaggar som rusar mot dig när de ser dig längs en gång, och irrbloss som svävar efter dig. The Yard har en slemklump och en skalbagge, Sand Pit en skalbagge och ett irrbloss, och Frost Cave alla tre.
-  - **Ny musik:** modern instrumental musik med syntetiserade trummor, bas, synthmattor och eko. Tropical house i The Yard, ökeninspirerad deep house med darbuka och oud-liknande melodi i Sand Pit, och lugn ambient synthwave med klockarpeggio i Frost Cave.
+  - **Nya monster:** slemklumpar som vandrar runt, skalbaggar som rusar mot dig när de ser dig längs en gång, och irrbloss som svävar efter dig. The Yard har en slemklump och en skalbagge, Sand Pit en skalbagge och ett irrbloss, Frost Cave och Lava Peak alla tre, och Cloud Nine två irrbloss och en skalbagge.
+  - **Ny musik:** modern instrumental musik med syntetiserade trummor, bas, synthmattor och eko. Tropical house i The Yard, ökeninspirerad deep house med darbuka och oud-liknande melodi i Sand Pit, lugn ambient synthwave med klockarpeggio i Frost Cave, en mörk och dyster klagosång med klämtande klocka, hjärtslag och mullrande ljud på Lava Peak, och kyrkorgel med kör som sjunger melodin på Cloud Nine.
 
 ## Manual
 
@@ -65,7 +65,7 @@ CC65=/sökväg/till/cc65 ./build.sh
 
 | Fil | Innehåll |
 | --- | --- |
-| `main.c` | Spelet, inklusive musikmotorn och låtarna för de tre banorna |
+| `main.c` | Spelet, inklusive musikmotorn och låtarna för de fem banorna |
 | `crt0.s` | Uppstart och NMI-rutin, som kopierar grafik till PPU:n under vblank |
 | `nrom.cfg` | Minneskarta för NROM: 32 KB program och 8 KB grafik |
 | `tools/make_chr.py` | Gör NES-grafik (`chr.bin`) och typsnitt (`font.h`) från PICO-8-cartens sprites |

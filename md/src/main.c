@@ -107,8 +107,11 @@ static const s8 DSTEP[4] = { -1, 1, -GW, GW };
 static const u16 DBTN[4] = { K_LEFT, K_RIGHT, K_UP, K_DOWN };
 static const u8 BACK[4] = { 1, 0, 3, 2 };
 
-static const char* const LEVEL_NAME[3] = { "THE YARD", "SAND PIT", "FROST CAVE" };
-static const u8 MONSTER_SPEED[3] = { 8, 10, 13 };
+#define LEVELS 5
+static const char* const LEVEL_NAME[LEVELS] = { "THE YARD", "SAND PIT", "FROST CAVE", "LAVA PEAK", "CLOUD NINE" };
+static const u8 MONSTER_SPEED[LEVELS] = { 8, 10, 13, 14, 15 };
+static const char* const LEVEL_NUM[LEVELS] = { "LEVEL 1", "LEVEL 2", "LEVEL 3", "LEVEL 4", "LEVEL 5" };
+static const u8 LEVEL_PAL[LEVELS] = { 0, 1, 2, 4, 5 };   /* PAL_ARENA index; 3 is the boss */
 
 /* ---------- helpers ---------- */
 static u8 rand8(void) {
@@ -755,7 +758,13 @@ static void reset_player(u8 p, u8 cx, u8 cy, u8 keep) {
 
 static const u8* level_song(void) {
     if (boss) return xgm_boss;
-    return level == 0 ? xgm_yard : level == 1 ? xgm_sand : xgm_frost;
+    switch (level) {
+    case 0: return xgm_yard;
+    case 1: return xgm_sand;
+    case 2: return xgm_frost;
+    case 3: return xgm_lava;
+    default: return xgm_cloud;
+    }
 }
 
 static void start_level(u8 keep) {
@@ -764,7 +773,7 @@ static void start_level(u8 keep) {
     SYS_disableInts();
     VDP_setEnable(FALSE);
     build_map();
-    PAL_setPalette(PAL0, PAL_ARENA[boss ? 3 : level], CPU);
+    PAL_setPalette(PAL0, PAL_ARENA[boss ? 3 : LEVEL_PAL[level]], CPU);
     PAL_setPalette(PAL2, PAL_SPRITES[opt_char[0]], CPU);
     PAL_setPalette(PAL3, PAL_SPRITES[boss ? PAL_BOSS : opt_char[1]], CPU);
     clear_plane_a();
@@ -863,7 +872,7 @@ static void solo_game(void) {
     for (;;) {
         if (play_level() == R_CLEARED) {
             hide_sprites();
-            if (level == 2) {
+            if (level == LEVELS - 1) {
                 confetti = 1;
                 jingle(xgm_victory);
                 message("CONGRATULATIONS!", "YOU CLEARED EVERY LEVEL", "YOU WIN!  PRESS START", 0);
@@ -879,7 +888,7 @@ static void solo_game(void) {
                 ++level;
             }
             start_level(1);
-            message(boss ? "BOSS FIGHT" : (level == 1 ? "LEVEL 2" : "LEVEL 3"),
+            message(boss ? "BOSS FIGHT" : LEVEL_NUM[level],
                     boss ? "IT TAKES 3 HITS" : LEVEL_NAME[level], "GET READY!", 90);
         } else {
             hide_sprites();
@@ -982,7 +991,7 @@ static void draw_logo(void) {
 static void title_choice(void) {
     text(BG_A, 14, 13, nplayers == 1 ? ">" : " ", 1);
     text(BG_A, 14, 15, nplayers == 2 ? ">" : " ", 1);
-    text(BG_A, 10, 18, nplayers == 1 ? "CLEAR 3 LEVELS AND A BOSS" : "  BLAST YOUR FRIEND!      ", 0);
+    text(BG_A, 10, 18, nplayers == 1 ? "CLEAR 5 LEVELS AND A BOSS" : "  BLAST YOUR FRIEND!      ", 0);
 }
 
 static void title_screen(void) {
@@ -1015,7 +1024,7 @@ static void title_screen(void) {
     }
 }
 
-static const char* const LEVEL_PAD[3] = { "THE YARD  ", "SAND PIT  ", "FROST CAVE" };
+static const char* const LEVEL_PAD[LEVELS] = { "THE YARD  ", "SAND PIT  ", "FROST CAVE", "LAVA PEAK ", "CLOUD NINE" };
 static u8 opt_row;
 
 /* the chosen characters stand next to their names */
@@ -1095,7 +1104,7 @@ static u8 options_screen(void) {
                 else if (opt_row == 1) next_items(t);
                 else next_char(0, t == 2 ? 3 : 1);
             }
-            else if (opt_row == 0) { opt_level = (opt_level + t) % 3; PAL_setPalette(PAL0, PAL_ARENA[opt_level], DMA); }
+            else if (opt_row == 0) { opt_level = (opt_level + (t == 2 ? LEVELS - 1 : 1)) % LEVELS; PAL_setPalette(PAL0, PAL_ARENA[LEVEL_PAL[opt_level]], DMA); }
             else if (opt_row == 1) opt_monsters ^= 1;
             else if (opt_row == 2) opt_wins = (opt_wins + t) % 3;
             else if (opt_row == 3) next_items(t);

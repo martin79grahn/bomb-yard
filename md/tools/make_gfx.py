@@ -45,6 +45,8 @@ ARENA = {   # floor dark/mid/light, wall dark/mid/light, stone dark/mid/light, f
     "sand":  ["#a8803e", "#d4ae64", "#f4dc9c", "#80582c", "#c09254", "#eecb8a", "#702818", "#ac4426", "#e07a46", "#806030"],
     "frost": ["#4a7cb0", "#86bce6", "#d2eefc", "#3e5c86", "#86aad2", "#e8f6ff", "#5a7aa6", "#a8cbea", "#ffffff", "#3a6694"],
     "boss":  ["#3c2a56", "#584078", "#7e64a4", "#3a3448", "#6c6680", "#aaa6be", "#5a1e2a", "#8e3040", "#c65c62", "#2a1c40"],
+    "lava":  ["#ff8a20", "#36221e", "#7a2a14", "#2a2428", "#4e4650", "#8a8290", "#3e140c", "#7e2814", "#d85a1a", "#1e120f"],
+    "cloud": ["#9cc4f0", "#c4dcfa", "#ffffff", "#a07a20", "#e0b84a", "#fff0a8", "#a8bede", "#dce8f8", "#ffffff", "#8fb0dc"],
 }
 
 
@@ -71,7 +73,7 @@ def sprite_pal(suit):
 
 
 PALETTES = {
-    "arena": [[md(hexrgb(c)) for c in pal0(t)] for t in ("yard", "sand", "frost", "boss")],
+    "arena": [[md(hexrgb(c)) for c in pal0(t)] for t in ("yard", "sand", "frost", "boss", "lava", "cloud")],
     "items": [md(hexrgb(c)) for c in PAL1],
     # the four characters (Bit, Ruby, Sky, Nova), then the boss and the angry boss
     "sprites": [[md(hexrgb(c)) for c in sprite_pal(s)] for s in ("p1", "p2", "sky", "nova", "boss", "angry")],
@@ -683,7 +685,7 @@ with open(os.path.join(OUT, "gfx.h"), "w") as f:
     for k, v in consts.items():
         f.write(f"#define {k} {v}\n")
     f.write("\nextern const u32 GFX_TILES[];\n")
-    f.write("extern const u16 PAL_ARENA[4][16];\nextern const u16 PAL_ITEMS[16];\nextern const u16 PAL_SPRITES[6][16];\n")
+    f.write("extern const u16 PAL_ARENA[6][16];\nextern const u16 PAL_ITEMS[16];\nextern const u16 PAL_SPRITES[6][16];\n")
     for k, v in arrays.items():
         f.write(f"extern const u16 {k}[{len(v)}];\n")
 with open(os.path.join(OUT, "gfx.c"), "w") as f:
@@ -695,7 +697,7 @@ with open(os.path.join(OUT, "gfx.c"), "w") as f:
 
     def arr(name, vals):
         return f"const u16 {name} = {{" + ",".join(f"0x{v:04X}" for v in vals) + "};\n"
-    f.write("const u16 PAL_ARENA[4][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["arena"]) + "\n};\n")
+    f.write("const u16 PAL_ARENA[6][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["arena"]) + "\n};\n")
     f.write(arr("PAL_ITEMS[16]", PALETTES["items"]))
     f.write("const u16 PAL_SPRITES[6][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["sprites"]) + "\n};\n")
     for k, v in arrays.items():

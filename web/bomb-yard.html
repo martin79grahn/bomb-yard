@@ -286,11 +286,13 @@ const ANIM = {
 const DIRS = { l: [-1,0], r: [1,0], u: [0,-1], d: [0,1] };
 const MONSTER_SPR = 78, MONSTER_COUNT = 2;
 const ROUND_TIME = 3 * 60 * 60, STRESS_TIME = 20 * 60;   // three minutes per round (60 frames a second); music speeds up for the last 20 s
-// three levels in 1-player mode: new colours for floor and blocks, and the monsters get a bit quicker
+// five levels in 1-player mode: new colours for floor and blocks, and the monsters get a bit quicker
 const LEVELS = [
   { name: "The Yard",   monsterSpeed: 0.5,  remap: null },
   { name: "Sand Pit",   monsterSpeed: 0.64, remap: { 11: 15, 3: 9, 7: 10, 6: 4, 5: 0 } },
   { name: "Frost Cave", monsterSpeed: 0.8,  remap: { 11: 1, 3: 13, 7: 7, 6: 12, 5: 1 } },
+  { name: "Lava Peak",  monsterSpeed: 0.86, remap: { 11: 4, 3: 8, 7: 6, 6: 5, 5: 0 } },
+  { name: "Cloud Nine", monsterSpeed: 0.92, remap: { 11: 12, 3: 7, 7: 7, 6: 10, 5: 9 } },
 ];
 const LEVEL_SHEETS = LEVELS.map(l => l.remap ? buildSheet(l.remap) : SHEET);
 const PICKUP_SPR = { shoe: SHOE_SPR, fire: FIRE_POWER_SPR, bomb: BOMB_POWER_SPR };
@@ -333,6 +335,8 @@ let boomedThisFrame = false;
 //   The Yard:   marimba calls over jungle bongos that bend down in pitch, shaker and low drum
 //   Sand Pit:   a reedy tune in D hijaz with vibrato, a D drone and a maqsum drum pattern
 //   Frost Cave: slow bells in E minor answered by echoes, long bass notes, a breath of wind
+//   Lava Peak:  a moaning dirge in D phrygian, a deep rumbling bass, a heartbeat drum
+//   Cloud Nine: a hymn in C major held like an organ over organ pedal notes
 const L = 0x80, DUM = 1, TEK = 2, SHK = 3, WND = 4;
 const SONGS = [
   { rate: 7, duty: 0.25, vol: 11, decay: 1, floor: 0, triShort: 16, bend: 7, vibrato: false, echo: false,
@@ -353,6 +357,18 @@ const SONGS = [
     tri:  [40+L,0,0,0, 0,0,0,0, 47+L,0,0,0, 0,0,0,0,  36+L,0,0,0, 0,0,0,0, 43+L,0,0,0, 0,0,0,0,
            40+L,0,0,0, 0,0,0,0, 47+L,0,0,0, 0,0,0,0,  38+L,0,0,0, 0,0,0,0, 45+L,0,0,0, 0,0,0,0],
     drum: [WND,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0] },
+  { rate: 10, duty: 0.25, vol: 9, decay: 8, floor: 3, triShort: 24, bend: 0, vibrato: true, echo: false,
+    lead: [62,0,0,0, 0,0,0,0, 63,0,0,0, 62,0,0,0,      0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+           68,0,0,0, 0,0,67,0, 65,0,0,0, 63,0,0,0,     62,0,0,0, 0,0,0,0, 61,0,0,0, 62,0,1,0],
+    tri:  [38+L,0,0,0, 0,0,38+L,0, 39+L,0,0,0, 38+L,0,0,0,  38+L,0,0,0, 0,0,38+L,0, 39+L,0,0,0, 38+L,0,0,0,
+           44+L,0,0,0, 0,0,44+L,0, 43+L,0,0,0, 41+L,0,0,0,  38+L,0,0,0, 0,0,38+L,0, 37+L,0,0,0, 38+L,0,0,0],
+    drum: [DUM,0,DUM,0, 0,0,0,0, WND,0,0,0, 0,0,0,0] },
+  { rate: 9, duty: 0.5, vol: 8, decay: 14, floor: 6, triShort: 24, bend: 0, vibrato: true, echo: false,
+    lead: [72,0,0,0, 76,0,0,0, 79,0,0,0, 77,0,76,0,    74,0,0,0, 0,0,0,0, 76,0,0,0, 0,0,0,0,
+           77,0,0,0, 76,0,74,0, 72,0,0,0, 74,0,0,0,    71,0,0,0, 0,0,0,0, 72,0,0,0, 0,0,0,0],
+    tri:  [48+L,0,0,0, 0,0,0,0, 52+L,0,0,0, 53+L,0,0,0,  55+L,0,0,0, 0,0,0,0, 48+L,0,0,0, 0,0,0,0,
+           53+L,0,0,0, 0,0,55+L,0, 57+L,0,0,0, 53+L,0,0,0,  55+L,0,0,0, 0,0,0,0, 48+L,0,0,0, 0,0,0,0],
+    drum: [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0] },
 ];
 // drum kit: how each noise hit is filtered, its starting volume (0-15) and frames per volume step
 const KIT = { [DUM]: { type: "lowpass", f: 380, q: 1, vol: 12, dec: 1 }, [TEK]: { type: "bandpass", f: 2600, q: 1.2, vol: 9, dec: 1 },
@@ -1191,7 +1207,7 @@ const cv3 = document.getElementById("game3d"), c3 = cv3.getContext("2d");
 const ES = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
 cv3.width = Math.round(E.W * ES); cv3.height = Math.round(E.H * ES);
 
-// three looks, one per arena
+// five looks, one per arena
 const THEMES = [
   { name: "yard",  bg: ["#1d4a33", "#0a1d14"], floorA: "#6fc24c", floorB: "#62b343", speck: "rgba(30,90,20,0.35)", speck2: "rgba(220,255,170,0.35)",
     wall: { top: "#d4d7df", front: "#a1a7b6", side: "#7f8596", line: "rgba(60,64,80,0.35)", trim: "#6fb84a" },
@@ -1205,9 +1221,17 @@ const THEMES = [
     wall: { top: "#effaff", front: "#a5d4f0", side: "#7fb8dd", line: "rgba(255,255,255,0.45)", trim: "#ffffff" },
     crate: { top: "#ffffff", front: "#dde9f3", side: "#c1d3e2", line: "rgba(140,170,200,0.6)", kind: "snow" },
     plinth: "#20425f", blob: "#8fd8ff", beetle: "#2b4a6b", wisp: "#d8f4ff", debris: ["#ffffff", "#dde9f3", "#a5d4f0"] },
+  { name: "lava",  bg: ["#5a1408", "#120403"], floorA: "#3b2b28", floorB: "#33241f", speck: "rgba(255,110,30,0.75)", speck2: "rgba(255,200,80,0.55)",
+    wall: { top: "#5b5250", front: "#3e3534", side: "#2c2524", line: "rgba(255,96,24,0.55)", trim: "#ff6a1a" },
+    crate: { top: "#6e3a26", front: "#4c271a", side: "#351b12", line: "#ff7a20", kind: "magma" },
+    plinth: "#1c0d08", blob: "#ff5a1a", beetle: "#3a1a10", wisp: "#ffb040", debris: ["#ff7a20", "#4c271a", "#2c2524"], ember: "#ff8a2a" },
+  { name: "cloud", bg: ["#a9d8ff", "#3f74c0"], floorA: "#d3e3fb", floorB: "#c6d9f6", speck: "rgba(255,255,255,0.75)", speck2: "rgba(255,214,110,0.8)",
+    wall: { top: "#f4dc94", front: "#e2c26a", side: "#c6a24a", line: "rgba(150,110,30,0.5)", trim: "#fff2b0" },
+    crate: { top: "#ffffff", front: "#e9f1ff", side: "#cfdaf0", line: "rgba(140,165,210,0.6)", kind: "cloud" },
+    plinth: "#c9a64a", blob: "#ffe27a", beetle: "#7a8fc0", wisp: "#fff4c0", debris: ["#ffffff", "#e9f1ff", "#ffd84a"], ember: "#fff1a8" },
 ];
 // which monsters come out on each level of the 1-player game
-const ENH_MONSTERS = [["blob", "beetle"], ["beetle", "wisp"], ["wisp", "blob", "beetle"]];
+const ENH_MONSTERS = [["blob", "beetle"], ["beetle", "wisp"], ["wisp", "blob", "beetle"], ["blob", "wisp", "beetle"], ["wisp", "wisp", "beetle"]];
 
 // seeded random so a theme's floor texture looks the same every frame
 function seeded(seed){ let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
@@ -1252,6 +1276,19 @@ function boxSprite(m, wall){
     c.beginPath(); c.arc(14, gy + 15, 4, 0, Math.PI * 2); c.stroke();
     c.beginPath(); c.moveTo(24, gy + 9); c.lineTo(24, gy + 22); c.moveTo(20, gy + 13); c.lineTo(28, gy + 13); c.stroke();
     c.beginPath(); c.moveTo(33, gy + 21); c.lineTo(37, gy + 10); c.lineTo(41, gy + 21); c.stroke();
+  } else if (m.kind === "magma") {
+    // cracked rock with lava glowing through the seams
+    c.strokeStyle = m.line; c.lineWidth = 1.6; c.shadowColor = m.line; c.shadowBlur = 6;
+    c.beginPath(); c.moveTo(6, CD + 4); c.lineTo(14, CD + BH * 0.45); c.lineTo(10, CD + BH - 4);
+    c.moveTo(14, CD + BH * 0.45); c.lineTo(28, CD + BH * 0.55); c.lineTo(CW - 6, CD + BH * 0.3);
+    c.moveTo(28, CD + BH * 0.55); c.lineTo(32, CD + BH - 3); c.stroke(); c.shadowBlur = 0;
+  } else if (m.kind === "cloud") {
+    // a fluffy cloud: round puffs over the block
+    c.fillStyle = "rgba(255,255,255,0.95)";
+    c.beginPath();
+    for (const [px, py, pr] of [[CW * 0.22, CD + 4, 8], [CW * 0.5, CD - 1, 10], [CW * 0.8, CD + 3, 8], [CW * 0.3, CD + BH * 0.55, 7], [CW * 0.7, CD + BH * 0.5, 7]]) { c.moveTo(px + pr, py); c.arc(px, py, pr, 0, Math.PI * 2); }
+    c.fill();
+    c.strokeStyle = m.line; c.beginPath(); c.moveTo(6, CD + BH - 7); c.quadraticCurveTo(CW / 2, CD + BH - 11, CW - 6, CD + BH - 6); c.stroke();
   } else {
     // snow block: soft drifts and a glint
     c.fillStyle = "rgba(255,255,255,0.9)";
@@ -1331,11 +1368,23 @@ function buildFloor(th){
       } else if (th.name === "sand") {
         c.strokeStyle = rnd() < 0.6 ? th.speck : th.speck2; c.lineWidth = 1;
         c.beginPath(); c.moveTo(x - 6, y); c.quadraticCurveTo(x, y - 2.5, x + 6, y); c.stroke();
+      } else if (th.name === "lava") {
+        if (i > 1) continue;   // a few glowing cracks in the basalt
+        c.strokeStyle = rnd() < 0.7 ? th.speck : th.speck2; c.lineWidth = 1.3;
+        c.beginPath(); c.moveTo(x - 5, y - 1); c.lineTo(x - 1, y + 1.5); c.lineTo(x + 2, y - 1); c.lineTo(x + 6, y + 1); c.stroke();
+      } else if (th.name === "cloud") {
+        if (rnd() < 0.85) { c.fillStyle = th.speck; c.beginPath(); c.ellipse(x, y, 5 + rnd() * 3, 2, 0, 0, Math.PI * 2); c.fill(); }
+        else { c.fillStyle = th.speck2; c.beginPath(); c.arc(x, y, 1.2, 0, Math.PI * 2); c.fill(); }
       } else {
         c.fillStyle = rnd() < 0.7 ? th.speck : th.speck2;
         c.beginPath(); c.arc(x, y, rnd() * 1.4 + 0.4, 0, Math.PI * 2); c.fill();
       }
     }
+  }
+  if (th.name === "lava") {   // a soft red glow rising from below
+    c.globalAlpha = 0.16; c.strokeStyle = "#ff4a10"; c.lineWidth = 22;
+    for (let i = 0; i < 3; i++) { c.beginPath(); const s = proj(1 + i * 6, 0.5), e = proj(i * 5 - 3, N - 0.5); c.moveTo(s[0], s[1]); c.lineTo(e[0], e[1]); c.stroke(); }
+    c.globalAlpha = 1;
   }
   if (th.name === "frost") {   // glossy streaks across the ice
     c.globalAlpha = 0.18; c.strokeStyle = "#fff"; c.lineWidth = 18;
@@ -1488,6 +1537,17 @@ function drawMonster(c, m, t){
     c.fillStyle = "#1b2440"; c.beginPath(); c.arc(-5 + look * 4.5, -13.5 + lookY * 1.3, 2.2, 0, Math.PI * 2); c.arc(5 + look * 4.5, -13.5 + lookY * 1.3, 2.2, 0, Math.PI * 2); c.fill();
     c.fillStyle = "rgba(255,255,255,0.6)"; c.beginPath(); c.ellipse(-8, -20, 3.5, 2, -0.6, 0, Math.PI * 2); c.fill();
   }
+  if (th.name === "cloud" && m.alive) {   // up in the clouds the monsters are angels: wings and a halo
+    const flap = Math.sin(m.bob * 0.3) * 0.25;
+    c.fillStyle = "rgba(255,255,255,0.92)"; c.strokeStyle = "rgba(150,170,210,0.8)"; c.lineWidth = 1;
+    for (const sx of [-1, 1]) {
+      c.save(); c.translate(sx * 13, -14); c.rotate(sx * (-0.35 + flap));
+      c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(sx * 10, -12, sx * 17, -6); c.quadraticCurveTo(sx * 13, -2, sx * 15, 2); c.quadraticCurveTo(sx * 9, 2, sx * 10, 6); c.quadraticCurveTo(sx * 4, 5, 0, 0);
+      c.fill(); c.stroke(); c.restore();
+    }
+    c.shadowColor = "#ffd84a"; c.shadowBlur = 10; c.strokeStyle = "#ffd84a"; c.lineWidth = 2.4;
+    c.beginPath(); c.ellipse(0, -33 + Math.sin(m.bob * 0.1) * 1.5, 8, 2.6, 0, 0, Math.PI * 2); c.stroke(); c.shadowBlur = 0;
+  }
   c.restore();
 }
 
@@ -1586,6 +1646,11 @@ function drawParticles(c){
 function drawEnhanced(now){
   const c = c3, ai = arena(), th = THEMES[ai], spr3 = themeSprites(ai);
   if (floorKey !== ai || !floorCache) { floorCache = buildFloor(th); floorKey = ai; }
+  // embers drift up on Lava Peak, golden sparkles on Cloud Nine
+  if (th.ember && G && G.fx && phase === "play" && Math.random() < 0.25) {
+    const [x, y] = proj(Math.random() * N, Math.random() * N);
+    fx({ x, y, z: 2, vx: (Math.random() - 0.5) * 0.3, vy: 0, vz: 0.5 + Math.random() * 0.5, g: 0.004, life: 70 + Math.random() * 40, size: 1.5 + Math.random() * 1.5, color: th.ember, add: true });
+  }
   stepParticles();
   c.setTransform(ES, 0, 0, ES, 0, 0);
   const bg = c.createRadialGradient(E.W / 2, E.H * 0.35, 40, E.W / 2, E.H / 2, E.W * 0.75);
@@ -1699,6 +1764,8 @@ const KIND_SPEED = { blob: 1, beetle: 0.85, wisp: 0.75 };
 //   The Yard:   tropical house, A minor, four-on-the-floor, marimba hook
 //   Sand Pit:   desert deep house, D hijaz, darbuka hits and an oud-like pluck
 //   Frost Cave: ambient synthwave, E minor, wide pads and a bell arpeggio
+//   Lava Peak:  a slow, dark dirge in D phrygian: a moaning lead, a tolling bell, a heartbeat kick and rumbling
+//   Cloud Nine: a church organ hymn in C major with a choir singing the tune and holding the chords
 // =====================================================================
 const ESONGS = [
   { bpm: 114, inst: "marimba", padCut: 1600, padVol: 0.03,
@@ -1719,6 +1786,16 @@ const ESONGS = [
     bass: [0], bassLen: 15,
     arp: [0, 1, 2, 3, 2, 1, 2, 3],
     lead: [[0, 83], [12, 81], [16, 79], [28, 76], [32, 83], [40, 86], [44, 83], [48, 81], [56, 78]] },
+  { bpm: 70, inst: "moan", padCut: 520, padVol: 0.045,
+    chords: [[50, 53, 57], [51, 55, 58], [50, 53, 56], [49, 52, 56]], roots: [38, 39, 44, 37],
+    kick: [0, 2], toll: [0], rumble: [8],
+    bass: [0, 8], bassLen: 7,
+    lead: [[0, 62], [8, 63], [12, 62], [32, 68], [38, 67], [40, 65], [44, 63], [48, 62], [56, 61], [60, 62]] },
+  { bpm: 62, inst: "choir", organ: true, choir: 0.022, padVol: 0.05,
+    chords: [[60, 64, 67], [55, 59, 62], [53, 57, 60], [55, 59, 62, 65]], roots: [36, 43, 41, 43],
+    kick: [],
+    bass: [0, 8], bassLen: 8,
+    lead: [[0, 72], [4, 76], [8, 79], [12, 77], [14, 76], [16, 74], [24, 76], [32, 77], [36, 76], [38, 74], [40, 72], [44, 74], [48, 71], [56, 72]] },
 ];
 let eBus = null, eNext = 0, eStep = 0, eSong = -1, eNoise = null;
 function enhBus(a){
@@ -1801,6 +1878,49 @@ const EI = {
       o.connect(f); o.start(t); o.stop(t + dur + 0.7);
     }
   },
+  // a pipe organ: sine drawbars at 16', 8', 4', 2 2/3' and 2', with a church-sized reverb
+  organ(a, t, notes, dur, vol){
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.04); g.gain.setValueAtTime(vol, t + dur * 0.92); g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.12);
+    send(a, g, t, 0, { verbIn: 1.4 });
+    for (const n of notes) for (const [ratio, amp] of [[0.5, 0.45], [1, 1], [2, 0.6], [3, 0.3], [4, 0.28]]) {
+      const o = a.createOscillator(), og = a.createGain(); o.frequency.value = midiHz(n) * ratio; og.gain.value = amp / notes.length;
+      o.connect(og).connect(g); o.start(t); o.stop(t + dur + 0.2);
+    }
+  },
+  // voices singing "aah": detuned saws with vibrato through the vowel's formant filters
+  choir(a, t, notes, dur, vol){
+    const g = a.createGain(), mix = a.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + Math.min(0.35, dur * 0.4)); g.gain.setValueAtTime(vol, t + dur * 0.85); g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.45);
+    for (const [f, q, amp] of [[800, 7, 1], [1150, 8, 0.55], [2900, 10, 0.22]]) {
+      const bp = a.createBiquadFilter(), bg = a.createGain(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q; bg.gain.value = amp;
+      mix.connect(bp).connect(bg).connect(g);
+    }
+    send(a, g, t, 0, { verbIn: 1.2 });
+    const vib = a.createOscillator(), vg = a.createGain(); vib.frequency.value = 5.2; vg.gain.value = 14; vib.connect(vg);
+    for (const n of notes) for (const det of [-11, 0, 12]) {
+      const o = a.createOscillator(); o.type = "sawtooth"; o.frequency.value = midiHz(n); o.detune.value = det; vg.connect(o.detune);
+      o.connect(mix); o.start(t); o.stop(t + dur + 0.5);
+    }
+    vib.start(t); vib.stop(t + dur + 0.5);
+  },
+  // a low moan: a dark saw that swells in and wavers
+  moan(a, t, n, dur){
+    const o = a.createOscillator(), f = a.createBiquadFilter(), g = a.createGain(), vib = a.createOscillator(), vg = a.createGain();
+    o.type = "sawtooth"; o.frequency.value = midiHz(n); f.type = "lowpass"; f.Q.value = 5;
+    f.frequency.setValueAtTime(300, t); f.frequency.linearRampToValueAtTime(900, t + dur * 0.5); f.frequency.linearRampToValueAtTime(350, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.13, t + 0.25); g.gain.setValueAtTime(0.13, t + dur * 0.7); g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.3);
+    vib.frequency.value = 4; vg.gain.value = 18; vib.connect(vg).connect(o.detune);
+    o.connect(f).connect(g); send(a, g, t, 0, { verbIn: 0.9, dlyIn: 0.2 }); o.start(t); vib.start(t); o.stop(t + dur + 0.35); vib.stop(t + dur + 0.35);
+  },
+  // a big low bell, tolling
+  toll(a, t, n){
+    for (const [ratio, amp, dec] of [[0.5, 0.1, 3], [1, 0.12, 2.4], [2.4, 0.05, 1.2], [3.01, 0.04, 0.8], [4.2, 0.02, 0.5]]) {
+      const o = a.createOscillator(), g = envGain(a, t, amp, 0.004, dec); o.frequency.value = midiHz(n) * ratio;
+      o.connect(g); send(a, g, t, 0, { verbIn: 1.3 }); o.start(t); o.stop(t + dec + 0.05);
+    }
+  },
+  rumble(a, t, dur){ noiseHit(a, t, "lowpass", 110, 0.8, 0.5, dur, { verbIn: 0.5 }); },
   pluck(a, t, n, inst, v = 1){
     if (inst === "marimba") {
       for (const [ratio, amp, dec] of [[1, 0.2, 0.45], [4, 0.06, 0.08]]) {
@@ -1823,7 +1943,12 @@ const EI = {
 };
 function playEnhancedStep(a, song, step, t, sd){
   const s = step & 63, bar = s >> 4, b = s & 15;
-  if (b === 0) EI.pad(a, t, song.chords[bar], sd * 16, song.padCut, song.padVol);
+  if (b === 0) {
+    if (song.organ) EI.organ(a, t, song.chords[bar], sd * 16, song.padVol); else EI.pad(a, t, song.chords[bar], sd * 16, song.padCut, song.padVol);
+    if (song.choir) EI.choir(a, t, song.chords[bar], sd * 16, song.choir);
+  }
+  if (song.toll && song.toll.includes(b)) EI.toll(a, t, song.roots[bar] + 24);
+  if (song.rumble && song.rumble.includes(b)) EI.rumble(a, t, sd * 8);
   if (song.kick.includes(b)) EI.kick(a, t, song.kick.length > 2 ? 1 : 0.8);
   if (song.clap && song.clap.includes(b)) EI.clap(a, t);
   if (song.snare && song.snare.includes(b)) EI.snare(a, t);
@@ -1833,12 +1958,22 @@ function playEnhancedStep(a, song, step, t, sd){
   if (song.tick && song.tick.includes(b)) EI.tick(a, t);
   if (song.doum && song.doum.includes(b)) EI.doum(a, t);
   if (song.tek && song.tek.includes(b)) EI.tek(a, t + sd * 0.06);
-  if (song.bass.includes(b)) EI.bass(a, t, song.roots[bar] + (song.bpm > 110 && b === 14 ? 12 : 0), sd * song.bassLen);
+  if (song.bass.includes(b)) {
+    if (song.organ) EI.organ(a, t, [song.roots[bar]], sd * song.bassLen, song.padVol * 0.8);   // organ pedals
+    else EI.bass(a, t, song.roots[bar] + (song.bpm > 110 && b === 14 ? 12 : 0), sd * song.bassLen);
+  }
   if (song.arp) {
     const ch = song.chords[bar], k = song.arp[b % song.arp.length];
     EI.pluck(a, t, ch[k % ch.length] + 12 + (b >= 8 ? 12 : 0), "bell", b % 2 ? 0.45 : 0.8);
   }
-  for (const [ls, n] of song.lead) if (ls === s) EI.pluck(a, t, n + (song.arp ? 0 : 0), song.arp ? "bell" : song.inst, song.arp ? 1.4 : 1);
+  song.lead.forEach(([ls, n], i) => {
+    if (ls !== s) return;
+    // held voices last until the next note of the tune
+    const len = sd * (((song.lead[(i + 1) % song.lead.length][0] - ls + 63) & 63) + 1);
+    if (song.inst === "choir") EI.choir(a, t, [n], len * 0.95, 0.07);
+    else if (song.inst === "moan") EI.moan(a, t, n, len * 0.9);
+    else EI.pluck(a, t, n, song.arp ? "bell" : song.inst, song.arp ? 1.4 : 1);
+  });
 }
 setInterval(() => {
   if (style !== "enhanced" || !ac || ac.state !== "running") { eNext = 0; return; }
