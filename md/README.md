@@ -8,7 +8,7 @@ Allt från NES-versionen finns med:
 
 - **1 spelare:** tre banor (The Yard, Sand Pit och Frost Cave) med två Kraxar på varje, och en bossbana mellan bana 1 och bana 2. Du väljer 3, 5 eller 10 liv innan spelet, och vilken figur du spelar som: Bit, Ruby, Sky eller Nova, med var sina färger. Bossen kan lägga 2 bomber åt gången med sprängräckvidd 5 och tål 3 träffar. Efter 2 träffar blir den röd och snabbare och kan lägga 3 bomber. Den skadas inte av sina egna bomber, bara av dina.
 - **2 spelare:** välj bana, om Kraxar ska vara med och hur många vunna rundor som krävs (3, 5 eller 10) och vilken figur var och en har. Två spelare kan inte välja samma. Spelare 2 använder handkontroll 2.
-- Under stenarna på varje bana göms 5 bomb-power-ups, 5 eld-power-ups, 2 skor och, med 1 spelare, 1 hjärta som ger ett extra liv. Bomber och eld har ingen övre gräns.
+- Under stenarna på varje bana göms bomb-power-ups, eld-power-ups, skor och, med 1 spelare, 1 hjärta som ger ett extra liv. Raden ITEMS på inställningsskärmen väljer hur många av varje sort (1–7, normalt 5); hjärtat är alltid ett. Bomber och eld har ingen övre gräns.
 - Styrhjälpen från NES-versionen: ett tryck strax före en korsning sparas, ett tryck upp till 5 pixlar för sent svänger ändå, och motsatt riktning vänder direkt.
 - Tre minuter per bana. De sista 20 sekunderna går musiken fortare och en klocka tickar.
 

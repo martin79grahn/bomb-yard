@@ -11,7 +11,7 @@ En NES-version av Bomb Yard med två lägen:
   - **Wins:** hur många vunna rundor som krävs för att vinna matchen, 3, 5 eller 10.
   - **P1 och P2:** vilken figur varje spelare har, Bit, Ruby, Sky eller Nova. Två spelare kan inte välja samma.
 
-Under stenarna på varje bana göms 5 bomb-power-ups, 5 eld-power-ups och 2 skor, och i 1-spelarläget också 1 hjärta som ger ett extra liv. Det finns ingen övre gräns för hur många bomber eller hur lång eld du kan samla på dig, men skorna slutar ge fart efter 4.
+Under stenarna på varje bana göms bomb-power-ups, eld-power-ups och skor, och i 1-spelarläget också 1 hjärta som ger ett extra liv. Hur många av varje sort (1–7, normalt 5) väljer du på raden ITEMS på inställningsskärmen, och i webbversionen med knappen Power-ups. Hjärtat är alltid ett och går inte att ändra. Det finns ingen övre gräns för hur många bomber eller hur lång eld du kan samla på dig, men skorna slutar ge fart efter 4.
 
 Överst på skärmen står `B` för antal bomber, `F` för sprängräckvidd och `S` för hur många skor (fart) du har plockat. I 1-spelarläget står också hur många liv du har kvar och på bossbanan hur många träffar bossen tål (`BOSS 3`), och i 2-spelarläget vunna rundor av hur många som krävs, till exempel `P1 2/5`.
 

@@ -172,6 +172,7 @@ body:not(.two) .pad.p2 { display: none; }
             <button id="optMonsters" type="button" title="2 players: monsters in the arena">Monsters: off</button>
             <button id="optWins" type="button" title="2 players: rounds needed to win">Wins: 3</button>
             <button id="optLives" type="button" title="1 player: lives">Lives: 3</button>
+            <button id="optItems" type="button" title="Power-ups of each kind (bomb, fire, speed) per arena">Power-ups: 5</button>
             <button id="optChar1" type="button" title="Player 1's character">P1: Bit</button>
             <button id="optChar2" type="button" title="2 players: player 2's character">P2: Ruby</button>
           </div>
@@ -447,13 +448,14 @@ let mode = null;         // "cpu" | "2p"
 let wins = [0, 0];
 let level = 1;           // 1-player level, 1..LEVELS.length
 let boss = false;        // 1-player boss stage, between levels 1 and 2 (level stays 1)
-// power-ups hidden under the stones of each arena; the heart only in the 1-player game
-const POOL = { bomb: 5, fire: 5, shoe: 2, life: 1 };
+// power-ups hidden under the stones of each arena: one heart (1-player game only) and opts.items of each other kind
+function pool(){ return { life: mode === "cpu" ? 1 : 0, bomb: opts.items, fire: opts.items, shoe: opts.items }; }
 const BOSS = { hp: 3, fire: 5, bombs: 2, angryBombs: 3, speed: 0.875, angrySpeed: 1.15 };
 // 2-player options, kept between visits: arena (-1 = a new one every round), monsters, wins needed
-const opts = { arena: -1, monsters: false, wins: 3, lives: 3, chars: [0, 1] };
+const opts = { arena: -1, monsters: false, wins: 3, lives: 3, items: 5, chars: [0, 1] };
 try { Object.assign(opts, JSON.parse(localStorage.getItem("by-opts") || "{}")); } catch (e) {}
 function winsNeeded(){ return opts.wins; }
+if (!(opts.items >= 1 && opts.items <= 7)) opts.items = 5;
 if (!Array.isArray(opts.chars) || opts.chars.length !== 2) opts.chars = [0, 1];
 function charOf(id){ return CHARS[opts.chars[id] % CHARS.length]; }
 let lives = 0;           // 1-player lives left
@@ -526,8 +528,7 @@ function hideItems(){
   for (let cy = 0; cy < N; cy++) for (let cx = 0; cx < N; cx++) if (cellType(cx, cy) === "stone") stones.push(cx + cy*N);
   for (let i = stones.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [stones[i], stones[j]] = [stones[j], stones[i]]; }
   const hidden = new Map();
-  for (const [type, n] of Object.entries(POOL)) {
-    if (type === "life" && mode !== "cpu") continue;
+  for (const [type, n] of Object.entries(pool())) {
     for (let i = 0; i < n && stones.length; i++) hidden.set(stones.pop(), type);
   }
   return hidden;
@@ -1000,13 +1001,14 @@ document.getElementById("btnMenu").addEventListener("click", () => {
   phase = "menu"; showOverlay("BOMB YARD", "", "menu"); renderOpts();
   statusEl.textContent = "Pick a mode to start.";
 });
-const optArena = document.getElementById("optArena"), optMonsters = document.getElementById("optMonsters"), optWins = document.getElementById("optWins"), optLives = document.getElementById("optLives"),
+const optArena = document.getElementById("optArena"), optMonsters = document.getElementById("optMonsters"), optWins = document.getElementById("optWins"), optLives = document.getElementById("optLives"), optItems = document.getElementById("optItems"),
       optChar1 = document.getElementById("optChar1"), optChar2 = document.getElementById("optChar2");
 function renderOpts(){
   optArena.textContent = `Arena: ${opts.arena < 0 ? "changes" : LEVELS[opts.arena].name}`;
   optMonsters.textContent = `Monsters: ${opts.monsters ? "on" : "off"}`;
   optWins.textContent = `Wins: ${opts.wins}`;
   optLives.textContent = `Lives: ${opts.lives}`;
+  optItems.textContent = `Power-ups: ${opts.items}`;
   if (opts.chars[0] === opts.chars[1]) opts.chars[1] = (opts.chars[1] + 1) % CHARS.length;
   optChar1.textContent = `P1: ${charOf(0).name}`;
   optChar2.textContent = `P2: ${charOf(1).name}`;
@@ -1017,6 +1019,7 @@ optArena.addEventListener("click", () => { opts.arena = opts.arena + 1 >= LEVELS
 optMonsters.addEventListener("click", () => { opts.monsters = !opts.monsters; renderOpts(); });
 optWins.addEventListener("click", () => { opts.wins = opts.wins === 3 ? 5 : opts.wins === 5 ? 10 : 3; renderOpts(); });
 optLives.addEventListener("click", () => { opts.lives = opts.lives === 3 ? 5 : opts.lives === 5 ? 10 : 3; renderOpts(); });
+optItems.addEventListener("click", () => { opts.items = opts.items % 7 + 1; renderOpts(); });
 // the next character, never the one the other player has
 function nextChar(id){
   do opts.chars[id] = (opts.chars[id] + 1) % CHARS.length; while (opts.chars[id] === opts.chars[1 - id]);

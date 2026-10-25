@@ -35,10 +35,7 @@
 #define FLAME_LOW   20        /* the blast thins out for its last frames */
 #define MAX_BOMBS   40
 #define MAX_SPEEDUPS 4
-#define POOL_BOMB   5
-#define POOL_FIRE   5
-#define POOL_SHOE   2
-#define POOL_LIFE   1
+#define POOL_LIFE   1           /* 1 player only; bombs, fire and shoes: opt_items each */
 #define ROUND_SECS  180
 #define STRESS_SECS 20
 
@@ -74,6 +71,7 @@ static u8 palive[NPL], pdeath[NPL], panim[NPL], pframe[NPL], ppending[NPL], pbur
 static u8 pl, nplayers, wins[NPL];
 
 static u8 opt_level, opt_monsters, opt_wins, opt_lives;
+static u8 opt_items = 5;        /* power-ups of each kind per arena, 1..7 */
 /* the four characters to play as; their colours are PAL_SPRITES[0..3], the boss's 4 and 5 */
 #define PAL_BOSS  4
 #define PAL_ANGRY 5
@@ -246,7 +244,8 @@ static u8 is_safe(u8 cx, u8 cy) {
 }
 
 static void hide_items(u8 it, u8 n) {
-    u8 ci, tries = 0;
+    u16 tries = 1000;
+    u8 ci;
     while (n && --tries) {
         ci = rand8();
         if (ci >= CELLS || TYPE(ci) != STONE || ITEM(ci)) continue;
@@ -268,10 +267,10 @@ static void build_map(void) {
         else cell[k] = FLOOR;
     }
     for (k = 0; k < MAX_BOMBS; ++k) b_used[k] = 0;
-    hide_items(IT_BOMB, POOL_BOMB);
-    hide_items(IT_FIRE, POOL_FIRE);
-    hide_items(IT_SHOE, POOL_SHOE);
     if (nplayers == 1) hide_items(IT_SHOE | 0x20, POOL_LIFE);
+    hide_items(IT_BOMB, opt_items);
+    hide_items(IT_FIRE, opt_items);
+    hide_items(IT_SHOE, opt_items);
 }
 
 static u8 walkable(u8 ci) { return TYPE(ci) == FLOOR && !BOMB(ci); }
@@ -1024,26 +1023,34 @@ static void options_sprites(void) {
     u8 p;
     nspr = 0;
     for (p = 0; p < nplayers; ++p)
-        spr(p ? 256 : 228, (nplayers == 1 ? 14 : 16 + p * 2) * 8 - 12, SPRITE_SIZE(2, 3),
+        spr(p ? 256 : 228, (nplayers == 1 ? 16 : 17 + p * 2) * 8 - 12, SPRITE_SIZE(2, 3),
             TILE_ATTR_FULL(p ? PAL3 : PAL2, 1, 0, 0, TB + S_BOMBER));
     spr_end();
 }
 
+static const char* const DIGIT[8] = { "0", "1", "2", "3", "4", "5", "6", "7" };
+
 static void options_draw(void) {
     u8 r;
     if (nplayers == 1) {
-        text(BG_A, 10, 12, opt_row == 0 ? ">" : " ", 1);
-        text(BG_A, 10, 14, opt_row == 1 ? ">" : " ", 1);
+        for (r = 0; r < 3; ++r) text(BG_A, 10, 12 + r * 2, opt_row == r ? ">" : " ", 1);
         text(BG_A, 22, 12, opt_lives == 0 ? "3 " : opt_lives == 1 ? "5 " : "10", 1);
-        text(BG_A, 22, 14, CHAR_NAME[opt_char[0]], 1);
+        text(BG_A, 22, 14, DIGIT[opt_items], 1);
+        text(BG_A, 22, 16, CHAR_NAME[opt_char[0]], 1);
         return;
     }
-    for (r = 0; r < 5; ++r) text(BG_A, 10, 10 + r * 2, opt_row == r ? ">" : " ", 1);
-    text(BG_A, 22, 10, LEVEL_PAD[opt_level], 1);
-    text(BG_A, 22, 12, opt_monsters ? "ON " : "OFF", 1);
-    text(BG_A, 22, 14, opt_wins == 0 ? "3 " : opt_wins == 1 ? "5 " : "10", 1);
-    text(BG_A, 22, 16, CHAR_NAME[opt_char[0]], 1);
-    text(BG_A, 22, 18, CHAR_NAME[opt_char[1]], 1);
+    for (r = 0; r < 6; ++r) text(BG_A, 10, 9 + r * 2, opt_row == r ? ">" : " ", 1);
+    text(BG_A, 22, 9, LEVEL_PAD[opt_level], 1);
+    text(BG_A, 22, 11, opt_monsters ? "ON " : "OFF", 1);
+    text(BG_A, 22, 13, opt_wins == 0 ? "3 " : opt_wins == 1 ? "5 " : "10", 1);
+    text(BG_A, 22, 15, DIGIT[opt_items], 1);
+    text(BG_A, 22, 17, CHAR_NAME[opt_char[0]], 1);
+    text(BG_A, 22, 19, CHAR_NAME[opt_char[1]], 1);
+}
+
+/* 1..7 power-ups of each kind, wrapping (step 1 forward, 2 back) */
+static void next_items(u8 step) {
+    opt_items = step == 1 ? (opt_items == 7 ? 1 : opt_items + 1) : (opt_items == 1 ? 7 : opt_items - 1);
 }
 
 /* the next character for player p (step 1 forward, 3 back), never the other player's */
@@ -1054,17 +1061,18 @@ static void next_char(u8 p, u8 step) {
 }
 
 static u8 options_screen(void) {
-    u8 rows = nplayers == 1 ? 2 : 5, t;
+    u8 rows = nplayers == 1 ? 3 : 6, t;
     clear_plane_a();
     box(6, 5, 28, 20);
     text_c(BG_A, 7, nplayers == 1 ? "1 PLAYER OPTIONS" : "2 PLAYER OPTIONS", 1);
-    if (nplayers == 1) { text(BG_A, 12, 12, "LIVES", 0); text(BG_A, 12, 14, "PLAYER", 0); }
+    if (nplayers == 1) { text(BG_A, 12, 12, "LIVES", 0); text(BG_A, 12, 14, "ITEMS", 0); text(BG_A, 12, 16, "PLAYER", 0); }
     else {
-        text(BG_A, 12, 10, "LEVEL", 0);
-        text(BG_A, 12, 12, "MONSTERS", 0);
-        text(BG_A, 12, 14, "WINS", 0);
-        text(BG_A, 12, 16, "P1", 0);
-        text(BG_A, 12, 18, "P2", 0);
+        text(BG_A, 12, 9, "LEVEL", 0);
+        text(BG_A, 12, 11, "MONSTERS", 0);
+        text(BG_A, 12, 13, "WINS", 0);
+        text(BG_A, 12, 15, "ITEMS", 0);
+        text(BG_A, 12, 17, "P1", 0);
+        text(BG_A, 12, 19, "P2", 0);
         if (opt_char[0] == opt_char[1]) next_char(1, 1);
     }
     text(BG_A, 10, 21, "UP/DOWN  CHOOSE", 0);
@@ -1084,12 +1092,14 @@ static u8 options_screen(void) {
             t = (pad_new & K_LEFT) ? 2 : 1;
             if (nplayers == 1) {
                 if (opt_row == 0) opt_lives = (opt_lives + t) % 3;
+                else if (opt_row == 1) next_items(t);
                 else next_char(0, t == 2 ? 3 : 1);
             }
             else if (opt_row == 0) { opt_level = (opt_level + t) % 3; PAL_setPalette(PAL0, PAL_ARENA[opt_level], DMA); }
             else if (opt_row == 1) opt_monsters ^= 1;
             else if (opt_row == 2) opt_wins = (opt_wins + t) % 3;
-            else next_char(opt_row - 3, t == 2 ? 3 : 1);
+            else if (opt_row == 3) next_items(t);
+            else next_char(opt_row - 4, t == 2 ? 3 : 1);
         } else continue;
         sfx_menu();
         options_draw();
