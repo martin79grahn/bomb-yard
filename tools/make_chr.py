@@ -9,6 +9,7 @@ Pattern table 0 ($0000) holds background tiles:
   $80-$9F  explosion pieces, 16 x 16 each (flame palette: 1 red edge, 2 orange, 3 yellow core):
            centre $80, across $82, up-down $84, ends rounded to the left $86, right $88,
            up $8A, down $8C, and a lone ball $8E
+  $A0,$A1,$B0,$B1  the penetrator bomb power-up: a bomb pierced by an arrow (item palette)
 Pattern table 1 ($1000) holds sprites:
   $00-$2F  the bomber frames (sheet rows 0-2)
   $30,$31  confetti specks
@@ -145,6 +146,34 @@ heart = heart_pixels()
 for i, t in enumerate((0x2C, 0x2D, 0x3C, 0x3D)):
     ox, oy = (i & 1) * 8, (i >> 1) * 8
     bg[t] = encode([row[ox:ox + 8] for row in heart[oy:oy + 8]])
+
+# the penetrator bomb: a dark bomb with a shine and fuse, an arrow driven right through it
+def penetrator_pixels():
+    px = [[0] * 16 for _ in range(16)]
+    for y in range(16):
+        for x in range(16):
+            if (x - 7.0) ** 2 + (y - 9.0) ** 2 <= 5.6 ** 2:
+                px[y][x] = 1
+    for x, y in ((5, 6), (4, 7), (5, 7), (4, 8)):
+        px[y][x] = 2
+    for x, y in ((9, 3), (10, 2), (11, 1)):          # fuse
+        px[y][x] = 2
+    px[0][12] = 3; px[1][12] = 3
+    for x in range(0, 12):                           # the shaft
+        px[9][x] = 3
+    for x, h in ((11, 3), (12, 2), (13, 2), (14, 1), (15, 0)):   # the head
+        for y in range(9 - h, 10 + h):
+            px[y][x] = 3
+    for y in (7, 11):                                # fletching
+        px[y][0] = 2; px[y][1] = 2
+    px[8][1] = 2; px[10][1] = 2
+    return px
+
+
+pen = penetrator_pixels()
+for i, t in enumerate((0xA0, 0xA1, 0xB0, 0xB1)):
+    ox, oy = (i & 1) * 8, (i >> 1) * 8
+    bg[t] = encode([row[ox:ox + 8] for row in pen[oy:oy + 8]])
 
 # explosion pieces: a beam with a red edge, orange body and yellow core, rounded at the ends
 def flame_piece(left, right, up, down):

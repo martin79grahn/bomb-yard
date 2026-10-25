@@ -36,13 +36,17 @@
 #define MAX_BOMBS   40
 #define MAX_SPEEDUPS 4
 #define POOL_LIFE   1           /* 1 player only; bombs, fire and shoes: opt_items each */
+#define POOL_PEN    2           /* penetrator bombs */
 #define ROUND_SECS  180
 #define STRESS_SECS 20
 
 #define TYPE(ci)        (cell[ci] & 3)
 #define ITEM(ci)        ((cell[ci] >> 2) & 3)
 #define IS_LIFE(ci)     (ITEM(ci) == IT_SHOE && (cell[ci] & TUFT))
-#define SET_ITEM(ci, v) (cell[ci] = (cell[ci] & ~0x0C) | ((v) << 2))
+/* the penetrator bomb: a bomb item with its own bit */
+#define PEN             0x40
+#define IS_PEN(ci)      (ITEM(ci) == IT_BOMB && (cell[ci] & PEN))
+#define SET_ITEM(ci, v) (cell[ci] = (cell[ci] & ~(0x0C | PEN)) | ((v) << 2))
 #define BOMB(ci)        (cell[ci] & HAS_BOMB)
 #define FLAME(ci)       (flame[ci])
 
@@ -51,7 +55,7 @@ static u8 flame[CELLS];
 static u8 bfire[CELLS];       /* burning only with the boss's own fire, which can't hurt it */
 static u8 fowner;             /* whose bomb the flames being added come from */
 
-static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_BOMBS], b_owner[MAX_BOMBS];
+static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_BOMBS], b_owner[MAX_BOMBS], b_pen[MAX_BOMBS];
 
 /* buttons, as the NES code had them */
 #define K_UP    BUTTON_UP
@@ -65,6 +69,7 @@ static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_B
 #define NPL 2
 static u8 px[NPL], py[NPL], pcx[NPL], pcy[NPL], pmoving[NPL], pdir[NPL], pleft[NPL], pfrac[NPL];
 static u8 pspeed[NPL], pups[NPL], pfire[NPL], pbombs[NPL], pactive[NPL];
+static u8 ppen[NPL];            /* has the penetrator: blasts go through stone. Lost on dying */
 static s8 pdx[NPL], pdy[NPL];
 static u8 pbuf[NPL], pbuft[NPL];
 static u8 palive[NPL], pdeath[NPL], panim[NPL], pframe[NPL], ppending[NPL], pburned[NPL];
@@ -72,16 +77,23 @@ static u8 pl, nplayers, wins[NPL];
 
 static u8 opt_level, opt_monsters, opt_wins, opt_lives;
 static u8 opt_items = 5;        /* power-ups of each kind per arena, 1..7 */
-/* the four characters to play as; their colours are PAL_SPRITES[0..3], the boss's 4 and 5 */
-#define PAL_BOSS  4
-#define PAL_ANGRY 5
+/* the four characters to play as; their colours are PAL_SPRITES[0..3], then each level's boss
+   and its angry look */
+#define PAL_BOSS(lv)  (4 + (lv) * 2)
+#define PAL_ANGRY(lv) (5 + (lv) * 2)
 static const char* const CHAR_NAME[4] = { "BIT ", "RUBY", "SKY ", "NOVA" };
 static u8 opt_char[2] = { 0, 1 };
 static const u8 WIN_CHOICES[3] = { 3, 5, 10 };
 static u8 lives, win_target;
 
-#define BOSS_HP     3
-#define BOSS_SPEED  14
+/* a boss waits after every level, tougher each time: hits to beat, hits before it gets angry
+   (then one more bomb and 5 faster), bombs, blast, speed and frames between its bombs */
+static const u8 BOSS_HP[5]     = { 3,  4,  4,  5,  6 };
+static const u8 BOSS_ANGRY[5]  = { 2,  2,  2,  3,  3 };
+static const u8 BOSS_BOMBS[5]  = { 2,  2,  3,  3,  3 };
+static const u8 BOSS_FIRE_R[5] = { 5,  5,  6,  6,  7 };
+static const u8 BOSS_SPEED[5]  = { 14, 15, 15, 16, 17 };
+static const u8 BOSS_REST[5]   = { 30, 26, 22, 18, 14 };
 static u8 boss, bhits, binv, bwait, vb_cell, vb_on;
 
 #define NMON 2
@@ -111,6 +123,7 @@ static const u8 BACK[4] = { 1, 0, 3, 2 };
 static const char* const LEVEL_NAME[LEVELS] = { "THE YARD", "SAND PIT", "FROST CAVE", "LAVA PEAK", "CLOUD NINE" };
 static const u8 MONSTER_SPEED[LEVELS] = { 8, 10, 13, 14, 15 };
 static const char* const LEVEL_NUM[LEVELS] = { "LEVEL 1", "LEVEL 2", "LEVEL 3", "LEVEL 4", "LEVEL 5" };
+static const char* const BOSS_TAKES[LEVELS] = { "IT TAKES 3 HITS", "IT TAKES 4 HITS", "IT TAKES 4 HITS", "IT TAKES 5 HITS", "IT TAKES 6 HITS" };
 static const u8 LEVEL_PAL[LEVELS] = { 0, 1, 2, 4, 5 };   /* PAL_ARENA index; 3 is the boss */
 
 /* ---------- helpers ---------- */
@@ -229,6 +242,7 @@ static void draw_obj(u8 ci) {
         VDP_setTileMapXY(BG_A, 0, x, y + 1); VDP_setTileMapXY(BG_A, 0, x + 1, y + 1);
         return;
     } else if (IS_LIFE(ci)) t = T_ITEM_LIFE;
+    else if (IS_PEN(ci)) t = T_ITEM_PEN;
     else if (ITEM(ci) == IT_SHOE) t = T_ITEM_SHOE;
     else if (ITEM(ci) == IT_FIRE) t = T_ITEM_FIRE;
     else t = T_ITEM_BOMB;
@@ -254,6 +268,7 @@ static void hide_items(u8 it, u8 n) {
         if (ci >= CELLS || TYPE(ci) != STONE || ITEM(ci)) continue;
         SET_ITEM(ci, it & 3);
         if (it & 0x20) cell[ci] |= TUFT;
+        cell[ci] |= it & PEN;
         --n;
     }
 }
@@ -271,6 +286,7 @@ static void build_map(void) {
     }
     for (k = 0; k < MAX_BOMBS; ++k) b_used[k] = 0;
     if (nplayers == 1) hide_items(IT_SHOE | 0x20, POOL_LIFE);
+    hide_items(IT_BOMB | PEN, POOL_PEN);
     hide_items(IT_BOMB, opt_items);
     hide_items(IT_FIRE, opt_items);
     hide_items(IT_SHOE, opt_items);
@@ -310,13 +326,14 @@ static void hud_num(u16 x, u16 y, u8 v) {
 
 static void hud_stats(u8 p) {
     u16 x = p ? 36 : 0;
+    item_icon(x + 1, 5, ppen[p] ? T_ITEM_PEN : T_ITEM_BOMB);   /* the penetrator shows in place of the bomb */
     hud_num(x, 7, pbombs[p]);
     hud_num(x, 11, pfire[p]);
     hud_num(x, 15, pups[p]);
 }
 static void hud_lives(void) { hud_num(0, 19, lives); }
 static void hud_krax(void) { hud_num(36, 7, (malive[0] ? 1 : 0) + (malive[1] ? 1 : 0)); }
-static void hud_boss(void) { hud_num(36, 8, BOSS_HP - bhits); }
+static void hud_boss(void) { hud_num(36, 8, BOSS_HP[level] - bhits); }
 static void hud_wins(u8 p) {
     char* s = hud;
     *s++ = ' ';
@@ -397,19 +414,21 @@ static u8 bomb_at(u8 ci) {
     return 0;
 }
 
+static u8 bpen;                  /* the bomb going off is a penetrator */
 static void blast_line(u8 start, u8 range, u8 d) {
     u8 ci = start, n, t;
     for (n = 0; n < range; ++n) {
         ci += DSTEP[d];
         if (TYPE(ci) == CEMENT) return;
         if (TYPE(ci) == STONE) {
-            t = cell[ci] & (TUFT | 0x0C);
+            t = cell[ci] & (TUFT | PEN | 0x0C);
             cell[ci] = FLOOR;
             draw_ground(ci);
             if (TYPE(ci + 1) == FLOOR) draw_ground(ci + 1);       /* its shadows go too */
             if (TYPE(ci + GW) == FLOOR) draw_ground(ci + GW);
             add_flame(ci);
             cell[ci] |= t;
+            if (bpen) continue;                 /* a penetrator blasts on through the stone */
             return;
         }
         add_flame(ci);
@@ -423,7 +442,7 @@ static void explode(u8 b) {
     b_used[b] = 0;
     cell[ci] &= ~HAS_BOMB;
     if (pactive[o]) --pactive[o];
-    fowner = o;
+    fowner = o; bpen = b_pen[b];
     sfx_boom();
     add_flame(ci);
     for (d = 0; d < 4; ++d) blast_line(ci, r, d);
@@ -434,7 +453,7 @@ static void place_bomb(void) {
     if (!palive[pl] || pactive[pl] >= pbombs[pl] || BOMB(ci)) return;
     for (k = 0; k < MAX_BOMBS; ++k) if (!b_used[k]) break;
     if (k == MAX_BOMBS) return;
-    b_used[k] = 1; b_cell[k] = ci; b_fuse[k] = FUSE; b_range[k] = pfire[pl]; b_owner[k] = pl;
+    b_used[k] = 1; b_cell[k] = ci; b_fuse[k] = FUSE; b_range[k] = pfire[pl]; b_owner[k] = pl; b_pen[k] = ppen[pl];
     cell[ci] |= HAS_BOMB;
     ++pactive[pl];
     sfx_place();
@@ -507,9 +526,10 @@ static void collect(void) {
         hud_lives();
         return;
     }
-    if (t == IT_SHOE && pups[pl] < MAX_SPEEDUPS) { ++pups[pl]; pspeed[pl] += 4; }
-    if (t == IT_FIRE && pfire[pl] < 99) ++pfire[pl];
-    if (t == IT_BOMB && pbombs[pl] < 99) ++pbombs[pl];
+    if (IS_PEN(ci)) ppen[pl] = 1;
+    else if (t == IT_SHOE && pups[pl] < MAX_SPEEDUPS) { ++pups[pl]; pspeed[pl] += 4; }
+    else if (t == IT_FIRE && pfire[pl] < 99) ++pfire[pl];
+    else if (t == IT_BOMB && pbombs[pl] < 99) ++pbombs[pl];
     SET_ITEM(ci, 0);
     draw_obj(ci);
     sfx_pickup();
@@ -543,7 +563,7 @@ static void update_player(void) {
     }
 }
 
-static void kill_player(u8 p) { palive[p] = 0; pdeath[p] = 60; sfx_die(); }
+static void kill_player(u8 p) { palive[p] = 0; pdeath[p] = 60; ppen[p] = 0; sfx_die(); }
 
 /* ---------- the boss ---------- */
 static u8 reaches(u8 b, u8 r, u8 ci) {
@@ -599,7 +619,7 @@ static u8 boss_think(void) {
          TYPE(ci + DSTEP[want]) == STONE || rand8() < 6)) {
         vb_cell = ci; vb_on = 1;
         d = escape_dir();
-        if (d != 0xFF) { place_bomb(); bwait = 30; return d; }
+        if (d != 0xFF) { place_bomb(); bwait = BOSS_REST[level]; return d; }
         vb_on = 0;
     }
     if (boss_safe(ci + DSTEP[want]) && rand8() < 200) return want;
@@ -628,8 +648,11 @@ static void update_boss(void) {
 
 static void hit_boss(void) {
     ++bhits; binv = 90; sfx_bosshit();
-    if (bhits == 2) { pspeed[1] = BOSS_SPEED + 5; pbombs[1] = 3; PAL_setPalette(PAL3, PAL_SPRITES[PAL_ANGRY], DMA); }
-    if (bhits >= BOSS_HP) { palive[1] = 0; pdeath[1] = 60; }
+    if (bhits == BOSS_ANGRY[level]) {
+        pspeed[1] = BOSS_SPEED[level] + 5; pbombs[1] = BOSS_BOMBS[level] + 1;
+        PAL_setPalette(PAL3, PAL_SPRITES[PAL_ANGRY(level)], DMA);
+    }
+    if (bhits >= BOSS_HP[level]) { palive[1] = 0; pdeath[1] = 60; }
     hud_boss();
 }
 
@@ -753,7 +776,7 @@ static void reset_player(u8 p, u8 cx, u8 cy, u8 keep) {
     pcx[p] = cx; pcy[p] = cy; px[p] = cx * 16; py[p] = cy * 16;
     pmoving[p] = 0; pdir[p] = 3; pframe[p] = 0; panim[p] = 0; pfrac[p] = 0; pbuft[p] = 0;
     palive[p] = 1; pdeath[p] = 0; pactive[p] = 0; ppending[p] = 0; pburned[p] = 0;
-    if (!keep) { pspeed[p] = 16; pups[p] = 0; pfire[p] = 1; pbombs[p] = 1; }
+    if (!keep) { pspeed[p] = 16; pups[p] = 0; pfire[p] = 1; pbombs[p] = 1; ppen[p] = 0; }
 }
 
 static const u8* level_song(void) {
@@ -773,16 +796,16 @@ static void start_level(u8 keep) {
     SYS_disableInts();
     VDP_setEnable(FALSE);
     build_map();
-    PAL_setPalette(PAL0, PAL_ARENA[boss ? 3 : LEVEL_PAL[level]], CPU);
+    PAL_setPalette(PAL0, PAL_ARENA[LEVEL_PAL[level]], CPU);   /* the boss fights in its level's colours */
     PAL_setPalette(PAL2, PAL_SPRITES[opt_char[0]], CPU);
-    PAL_setPalette(PAL3, PAL_SPRITES[boss ? PAL_BOSS : opt_char[1]], CPU);
+    PAL_setPalette(PAL3, PAL_SPRITES[boss ? PAL_BOSS(level) : opt_char[1]], CPU);
     clear_plane_a();
     reset_player(0, 1, 1, keep);
     palive[1] = 0; pdeath[1] = 0; py[1] = 0;
     if (nplayers == 2) reset_player(1, GW - 2, GH - 2, 0);
     if (boss) {
         reset_player(1, GW - 2, GH - 2, 0);
-        pfire[1] = 5; pbombs[1] = 2; pspeed[1] = BOSS_SPEED;
+        pfire[1] = BOSS_FIRE_R[level]; pbombs[1] = BOSS_BOMBS[level]; pspeed[1] = BOSS_SPEED[level];
         bhits = 0; binv = 0; bwait = 90;
     }
     mspeed = MONSTER_SPEED[level];
@@ -872,24 +895,25 @@ static void solo_game(void) {
     for (;;) {
         if (play_level() == R_CLEARED) {
             hide_sprites();
-            if (level == LEVELS - 1) {
+            if (boss && level == LEVELS - 1) {
                 confetti = 1;
                 jingle(xgm_victory);
-                message("CONGRATULATIONS!", "YOU CLEARED EVERY LEVEL", "YOU WIN!  PRESS START", 0);
+                message("CONGRATULATIONS!", "YOU BEAT EVERY BOSS", "YOU WIN!  PRESS START", 0);
+                boss = 0;
                 return;
             }
             jingle(xgm_clear);
-            if (level == 0 && !boss) {
+            if (!boss) {
                 message("LEVEL CLEARED", "NEXT UP", "THE BOSS", 150);
                 boss = 1;
             } else {
-                message(boss ? "BOSS DEFEATED" : "LEVEL CLEARED", "NEXT UP", LEVEL_NAME[level + 1], 150);
+                message("BOSS DEFEATED", "NEXT UP", LEVEL_NAME[level + 1], 150);
                 boss = 0;
                 ++level;
             }
             start_level(1);
             message(boss ? "BOSS FIGHT" : LEVEL_NUM[level],
-                    boss ? "IT TAKES 3 HITS" : LEVEL_NAME[level], "GET READY!", 90);
+                    boss ? BOSS_TAKES[level] : LEVEL_NAME[level], "GET READY!", 90);
         } else {
             hide_sprites();
             if (lives) --lives;
@@ -991,7 +1015,7 @@ static void draw_logo(void) {
 static void title_choice(void) {
     text(BG_A, 14, 13, nplayers == 1 ? ">" : " ", 1);
     text(BG_A, 14, 15, nplayers == 2 ? ">" : " ", 1);
-    text(BG_A, 10, 18, nplayers == 1 ? "CLEAR 5 LEVELS AND A BOSS" : "  BLAST YOUR FRIEND!      ", 0);
+    text(BG_A, 10, 18, nplayers == 1 ? "5 LEVELS AND 5 BOSSES"     : "  BLAST YOUR FRIEND!      ", 0);
 }
 
 static void title_screen(void) {

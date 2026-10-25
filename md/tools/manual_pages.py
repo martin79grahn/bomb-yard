@@ -49,7 +49,7 @@ def svg(layers, w, h, scale, label):
 
 P0 = G["pal0"]("yard")
 P1 = G["PAL1"]
-SP = {k: G["sprite_pal"](k) for k in ("p1", "boss", "angry")}
+SP = {k: G["sprite_pal"](k) for k in ("p1", "boss_yard", "boss_frost", "boss_lava", "angry_lava")}
 
 # ---------- an arena corner with a blast going off ----------
 W, H = 7, 5
@@ -89,8 +89,9 @@ def char(pic, pal, label, scale=3):
     return svg([(pic, pal, 0, 0)], pic.w, pic.h, scale, label)
 
 
-BOSS_SVG = char(G["bomber"](0, 0, boss=True), SP["boss"], "The boss")
-ANGRY_SVG = char(G["bomber"](0, 0, boss=True), SP["angry"], "The boss after two hits")
+BOSS_SVGS = "".join(char(G["bomber"](0, 0, boss=True), SP[k], label, 2) for k, label in (
+    ("boss_yard", "The Yard's boss"), ("boss_frost", "The Frost Cave's boss"), ("boss_lava", "Lava Peak's boss"),
+    ("angry_lava", "Lava Peak's boss, angry")))
 
 HEAD = """<!doctype html>
 <html lang="en">
@@ -170,7 +171,7 @@ def control(key, what):
 """
 
 
-page11 = HEAD.format(title="Mega Drive controls and the boss", heading="MD CONTROLS", tag="3-BUTTON PAD") + f"""
+page11 = HEAD.format(title="Mega Drive controls and the bosses", heading="MD CONTROLS", tag="3-BUTTON PAD") + f"""
   <div style="flex: 1; padding: 14px 28px 0; display: flex; flex-direction: column; gap: 10px">
     <div style="display: flex; flex-direction: column">
 {control("D-PAD", "Walk. In the menus: choose")}{control("A B C", "Drop a bomb (any of the three)")}{control("START", "Start, pause and play on")}{control("B", "Options screen: go back")}{control("C", "Title screen: debug mode, walk through walls")}    </div>
@@ -178,14 +179,13 @@ page11 = HEAD.format(title="Mega Drive controls and the boss", heading="MD CONTR
     <p style="margin: 0; font-size: 13px; line-height: 1.4">On the options screen, pick your bomber: Bit, Ruby, Sky or Nova, each in their own colours.</p>
 
     <h3 style="{H3}">THE SCREEN</h3>
-    <p style="margin: 0; font-size: 13px; line-height: 1.4">Left panel: your bombs, blast range, skates and lives. Right panel: Krax left, the boss's hits to go, or player 2. Top: the level and the clock, which turns yellow in the last 20 seconds while the music speeds up.</p>
+    <p style="margin: 0; font-size: 13px; line-height: 1.4">Left panel: your bombs (an arrowed bomb once you hold the penetrator), blast range, skates and lives. Right panel: Krax left, the boss's hits to go, or player 2. Top: the level and the clock, which turns yellow in the last 20 seconds while the music speeds up.</p>
 
-    <h3 style="{H3}">THE BOSS</h3>
-    <div style="display: flex; gap: 14px; align-items: center">
-      {BOSS_SVG}
-      {ANGRY_SVG}
-      <span style="font-size: 13px; line-height: 1.4">Waits between levels 1 and 2. Drops 2 bombs at a time with a blast of 5. Three hits beat it; after two it turns red, runs faster and drops 3 bombs. Its own bombs can't hurt it, only yours can.</span>
+    <h3 style="{H3}">THE BOSSES</h3>
+    <div style="display: flex; gap: 6px; align-items: flex-end">
+      {BOSS_SVGS}
     </div>
+    <p style="margin: 0; font-size: 13px; line-height: 1.4">One waits after every level, dressed in its colours. Each is tougher than the last: 3 to 6 hits, more bombs, a longer blast and more speed. Halfway it turns angry, redder and faster. Its own bombs can't hurt it, only yours can.</p>
   </div>
 """ + FOOT.format(page=11)
 

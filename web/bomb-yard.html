@@ -257,8 +257,15 @@ const CHARS = [
   { name: "Nova", sheet: buildSheet({7:10, 6:9, 13:9}),
     suit: { suit: "#ffd84a", shade: "#d08a10", accent: "#7b3fe0", glow: "#fff08a" } },
 ];
-// the boss: a lavender suit, pink and red once it has taken two hits
-const SHEET_BOSS = buildSheet({7:13, 6:1, 13:1}), SHEET_BOSS_ANGRY = buildSheet({7:14, 6:8, 13:8});
+// the bosses, one per level in that level's colours, redder once they're angry: [normal, angry]
+const BOSS_SHEETS = [
+  [{7:11, 6:3, 13:3}, {7:8, 6:3, 13:3}],     // The Yard: jungle green
+  [{7:9, 6:4, 13:4},  {7:8, 6:4, 13:4}],     // Sand Pit: desert orange
+  [{7:12, 6:1, 13:1}, {7:14, 6:1, 13:1}],    // Frost Cave: ice blue
+  [{7:8, 6:2, 13:2},  {7:10, 6:9, 13:9}],    // Lava Peak: molten red, white-hot when angry
+  [{7:10, 6:9, 13:9}, {7:8, 6:9, 13:9}],     // Cloud Nine: gold
+].map(pair => pair.map(m => buildSheet(m)));
+function bossSheet(b){ return BOSS_SHEETS[level - 1][b.angry ? 1 : 0]; }
 const FLASH = {}; for (let i = 0; i < 16; i++) FLASH[i] = 7;
 const SHEET_FLASH = buildSheet(FLASH);
 // the cart's creature sprite (78) sits on a pink background, so pink is its see-through colour
@@ -463,10 +470,19 @@ let G = null;            // current round
 let mode = null;         // "cpu" | "2p"
 let wins = [0, 0];
 let level = 1;           // 1-player level, 1..LEVELS.length
-let boss = false;        // 1-player boss stage, between levels 1 and 2 (level stays 1)
+let boss = false;        // 1-player boss stage, after every level (level stays the same)
 // power-ups hidden under the stones of each arena: one heart (1-player game only) and opts.items of each other kind
-function pool(){ return { life: mode === "cpu" ? 1 : 0, bomb: opts.items, fire: opts.items, shoe: opts.items }; }
-const BOSS = { hp: 3, fire: 5, bombs: 2, angryBombs: 3, speed: 0.875, angrySpeed: 1.15 };
+function pool(){ return { life: mode === "cpu" ? 1 : 0, pen: PEN_COUNT, bomb: opts.items, fire: opts.items, shoe: opts.items }; }
+// each boss is tougher than the last: hits to beat, hits before it gets angry (then one more bomb
+// and faster), bombs, blast, speed, and how often it hesitates
+const BOSSES = [
+  { hp: 3, angryAt: 2, bombs: 2, fire: 5, speed: 0.875, angrySpeed: 1.15, hesitate: 0.08 },
+  { hp: 4, angryAt: 2, bombs: 2, fire: 5, speed: 0.93,  angrySpeed: 1.2,  hesitate: 0.065 },
+  { hp: 4, angryAt: 2, bombs: 3, fire: 6, speed: 0.98,  angrySpeed: 1.25, hesitate: 0.05 },
+  { hp: 5, angryAt: 3, bombs: 3, fire: 6, speed: 1.03,  angrySpeed: 1.3,  hesitate: 0.04 },
+  { hp: 6, angryAt: 3, bombs: 3, fire: 7, speed: 1.1,   angrySpeed: 1.38, hesitate: 0.03 },
+];
+const PEN_COUNT = 2;     // penetrator bombs hidden in every arena
 // 2-player options, kept between visits: arena (-1 = a new one every round), monsters, wins needed
 const opts = { arena: -1, monsters: false, wins: 3, lives: 3, items: 5, chars: [0, 1] };
 try { Object.assign(opts, JSON.parse(localStorage.getItem("by-opts") || "{}")); } catch (e) {}
@@ -569,8 +585,9 @@ function newRound(){
     G.players = [makePlayer(0, 1, 1, false)];
     if (carry) Object.assign(G.players[0], carry);
     if (boss) {   // the boss stage: one bomber that fights back, no monsters
+      const B = BOSSES[level - 1];
       G.players.push(Object.assign(makePlayer(1, N-2, N-2, true),
-        { boss: true, hp: BOSS.hp, inv: 0, fire: BOSS.fire, bombs: BOSS.bombs, speed: BOSS.speed, wait: 90 }));
+        { boss: true, hp: B.hp, angry: false, inv: 0, fire: B.fire, bombs: B.bombs, speed: B.speed, wait: 90 }));
       G.monsters = [];
       G.confetti = []; G.fx = [];
       G.time = ROUND_TIME; G.timeUp = false;
@@ -625,7 +642,7 @@ function updateMonster(m){
 
 function placeBomb(p){
   if (!p.alive || p.active >= p.bombs || bombAt(p.cx, p.cy)) return false;
-  G.bombs.push({ cx: p.cx, cy: p.cy, fuse: FUSE, owner: p, range: p.fire });
+  G.bombs.push({ cx: p.cx, cy: p.cy, fuse: FUSE, owner: p, range: p.fire, pen: !!p.pen });
   p.active++; SFX.place(); return true;
 }
 
@@ -653,6 +670,7 @@ function explode(b){
         const type = G.hidden.get(cx + cy*N);
         if (type) G.pickups.push({ cx, cy, type, fresh: true });
         addFlame(cx, cy, b.owner);
+        if (b.pen) continue;                   // a penetrator blasts on through the stone
         break;                                 // stone stops the blast
       }
       addFlame(cx, cy, b.owner);
@@ -669,6 +687,7 @@ function collect(p){
   if (pk.type === "shoe" && p.speedUps < MAX_SPEEDUPS) { p.speedUps++; p.speed = 1 + p.speedUps * SPEED_STEP; }
   if (pk.type === "fire") p.fire++;
   if (pk.type === "bomb") p.bombs++;
+  if (pk.type === "pen") p.pen = true;
   if (pk.type === "life") { lives = Math.min(99, lives + 1); SFX.heart(); renderHud(); return; }
   SFX.pickup(); renderHud();
 }
@@ -772,10 +791,11 @@ function tick(){
   }
 }
 
-// three hits beat the boss; after two it turns red, gets quicker and drops three bombs at a time
+// enough hits beat the boss; part way it gets angry: redder, quicker and one more bomb at a time
 function hitBoss(b){
-  b.hp--; b.inv = 90; SFX.die(); fxPop(b.x, b.y, "#c58bff"); shake = Math.min(10, shake + 4);
-  if (b.hp === 1) { b.speed = BOSS.angrySpeed; b.bombs = BOSS.angryBombs; }
+  const B = BOSSES[level - 1];
+  b.hp--; b.inv = 90; SFX.die(); fxPop(b.x, b.y, bossSuit(b).glow); shake = Math.min(10, shake + 4);
+  if (!b.angry && B.hp - b.hp >= B.angryAt) { b.angry = true; b.speed = B.angrySpeed; b.bombs = B.bombs + 1; }
   if (b.hp <= 0) { b.alive = false; b.deathT = 60; SFX.win(); }
   renderHud();
 }
@@ -783,6 +803,7 @@ function hitBoss(b){
 // ---------- 1-player levels ----------
 function soloDied(){
   lives = Math.max(0, lives - 1);
+  if (carry) carry.pen = false;                // the penetrator is lost when you die
   const why = G.timeUp ? "Time's up" : boss ? "The boss got you" : "The monsters got you";
   if (lives === 0) {
     phase = "matchover"; renderHud();
@@ -794,20 +815,21 @@ function soloDied(){
   setTimeout(() => { if (phase === "roundover") { newRound(); hideOverlay(); phase = "play"; } }, 1800);
 }
 function soloCleared(p){
-  carry = { speed: p.speed, speedUps: p.speedUps, fire: p.fire, bombs: p.bombs };
-  if (level >= LEVELS.length) {
+  carry = { speed: p.speed, speedUps: p.speedUps, fire: p.fire, bombs: p.bombs, pen: !!p.pen };
+  if (boss && level >= LEVELS.length) {
+    boss = false;
     phase = "victory"; SFX.win(); renderHud();
     for (let i = 0; i < 90; i++) G.confetti.push({ x: Math.random()*N*16, y: -Math.random()*N*16, vy: 0.6 + Math.random(), vx: Math.random() - 0.5, c: [8, 9, 10, 11, 12, 14][i % 6] });
-    showOverlay("Congratulations!", `You beat all ${LEVELS.length} levels and cleared every monster. You win!`, "victory");
+    showOverlay("Congratulations!", `You cleared all ${LEVELS.length} levels and beat every boss. You win!`, "victory");
     return;
   }
-  if (level === 1 && !boss) {
+  if (!boss) {
     boss = true; phase = "roundover"; SFX.win(); renderHud();
-    showOverlay("Level 1 cleared", "Next up: the boss. It takes three hits, and it drops bombs too.", null);
+    const B = BOSSES[level - 1];
+    showOverlay(`Level ${level} cleared`, `Next up: the ${LEVELS[level - 1].name} boss. It takes ${B.hp} hits, and it drops bombs too.`, null);
   } else {
-    const beat = boss;
     boss = false; level++; phase = "roundover"; SFX.win(); renderHud();
-    showOverlay(beat ? "Boss defeated" : `Level ${level - 1} cleared`, `Next up: level ${level}, ${LEVELS[level - 1].name}. The monsters are faster now.`, null);
+    showOverlay("Boss defeated", `Next up: level ${level}, ${LEVELS[level - 1].name}. The monsters are faster now.`, null);
   }
   setTimeout(() => { if (phase === "roundover") { newRound(); hideOverlay(); phase = "play"; renderHud(); } }, 2200);
 }
@@ -833,27 +855,27 @@ function endRound(winner){
 function playerName(id){ return id === 0 ? "Player 1" : (mode === "cpu" ? "Monsters" : "Player 2"); }
 
 // ---------- CPU ----------
-function blastCells(cx, cy, range){
+function blastCells(cx, cy, range, pen = false){
   const out = [[cx, cy]];
   for (const [dx, dy] of Object.values(DIRS)) for (let n = 1; n <= range; n++) {
     const x = cx + dx*n, y = cy + dy*n, t = cellType(x, y);
     if (t === "cement") break;
     out.push([x, y]);
-    if (t === "stone") break;
+    if (t === "stone" && !pen) break;
   }
   return out;
 }
 // frames until each cell burns (0 = burning now); chained bombs inherit the earliest fuse
 function dangerMap(extra){
-  const bombs = G.bombs.map(b => ({ cx: b.cx, cy: b.cy, range: b.range, t: b.fuse }));
+  const bombs = G.bombs.map(b => ({ cx: b.cx, cy: b.cy, range: b.range, t: b.fuse, pen: b.pen }));
   if (extra) bombs.push(extra);
   for (let pass = 0; pass < 3; pass++) for (const b of bombs)
-    for (const [x, y] of blastCells(b.cx, b.cy, b.range)) {
+    for (const [x, y] of blastCells(b.cx, b.cy, b.range, b.pen)) {
       const o = bombs.find(c => c.cx === x && c.cy === y);
       if (o && o.t > b.t) o.t = b.t;
     }
   const m = new Map();
-  for (const b of bombs) for (const [x, y] of blastCells(b.cx, b.cy, b.range)) {
+  for (const b of bombs) for (const [x, y] of blastCells(b.cx, b.cy, b.range, b.pen)) {
     const k = x + y*N; m.set(k, Math.min(m.get(k) ?? 1e9, b.t));
   }
   for (const f of G.flames) m.set(f.cx + f.cy*N, 0);
@@ -913,7 +935,7 @@ function cpuThink(p){
   }, false);
   if (!d && foe) d = bfs(p, danger, (x, y) => Math.abs(x - foe.cx) + Math.abs(y - foe.cy) <= 1, false);
   if (!d) { p.wait = 10 + Math.floor(Math.random()*20); return null; }
-  if (Math.random() < 0.08) p.wait = 6 + Math.floor(Math.random()*12);   // a little hesitation keeps it beatable
+  if (Math.random() < (p.boss ? BOSSES[level - 1].hesitate : 0.08)) p.wait = 6 + Math.floor(Math.random()*12);   // a little hesitation keeps it beatable
   return d;
 }
 
@@ -1077,6 +1099,23 @@ const HEART = (() => {
   x.putImageData(img, 0, 0);
   return c;
 })();
+// the penetrator bomb: a dark bomb with a red arrow driven right through it (classic pixel art)
+const PEN_ICON = (() => {
+  const c = document.createElement("canvas"); c.width = 16; c.height = 16;
+  const x = c.getContext("2d"), img = x.createImageData(16, 16);
+  const put = (px, py, rgb) => img.data.set([...rgb, 255], (py*16 + px) * 4);
+  const DARK = [29, 43, 83], SHINE = [255, 241, 232], RED = [255, 0, 77], FUSE = [255, 163, 0];
+  for (let py = 0; py < 16; py++) for (let px = 0; px < 16; px++) if ((px - 7) ** 2 + (py - 9) ** 2 <= 5.6 ** 2) put(px, py, DARK);
+  for (const [px, py] of [[5,6],[4,7],[5,7],[4,8]]) put(px, py, SHINE);
+  for (const [px, py] of [[9,3],[10,2],[11,1]]) put(px, py, SHINE);
+  put(12, 0, FUSE); put(12, 1, FUSE);
+  for (let px = 0; px < 12; px++) put(px, 9, RED);
+  for (const [px, h] of [[11,3],[12,2],[13,2],[14,1],[15,0]]) for (let py = 9 - h; py <= 9 + h; py++) put(px, py, RED);
+  for (const [px, py] of [[0,7],[1,7],[0,11],[1,11],[1,8],[1,10]]) put(px, py, SHINE);
+  x.putImageData(img, 0, 0);
+  return c;
+})();
+function penCanvas(){ const c = document.createElement("canvas"); c.width = 16; c.height = 16; c.getContext("2d").drawImage(PEN_ICON, 0, 0); return c; }
 function heartCanvas(){ const c = document.createElement("canvas"); c.width = 16; c.height = 16; c.getContext("2d").drawImage(HEART, 0, 0); return c; }
 
 function iconCanvas(n, sheet = SHEET){
@@ -1102,14 +1141,15 @@ function renderHud(){
     const left = G && G.monsters ? G.monsters.filter(m => m.alive).length : total;
     const bp = boss && G && G.players[1];
     const rows = monsters && bp
-      ? [[ANIM.d.f[0], "Hits to go", `${Math.max(0, bp.hp)}/${BOSS.hp}`, bp.hp <= 1 ? SHEET_BOSS_ANGRY : SHEET_BOSS], [BOMB_POWER_SPR, "Bombs", bp.bombs], [FIRE_POWER_SPR, "Blast range", bp.fire]]
+      ? [[ANIM.d.f[0], "Hits to go", `${Math.max(0, bp.hp)}/${BOSSES[level - 1].hp}`, bossSheet(bp)], [BOMB_POWER_SPR, "Bombs", bp.bombs], [FIRE_POWER_SPR, "Blast range", bp.fire]]
       : monsters
       ? [[MONSTER_SPR, "Monsters left", `${left}/${total}`, SHEET_MON]]
       : [[BOMB_POWER_SPR, "Bombs", p.bombs], [FIRE_POWER_SPR, "Blast range", p.fire], [SHOE_SPR, "Speed", `${p.speedUps}/${MAX_SPEEDUPS}`]]
+        .concat(p.pen ? [["pen", "Penetrator", "on"]] : [])
         .concat(mode === "cpu" && id === 0 ? [["heart", "Lives", lives]] : []);
     for (const [spn, label, val, sheet] of rows) {
       const row = document.createElement("div"); row.className = "stat";
-      row.append(spn === "heart" ? heartCanvas() : iconCanvas(spn, sheet));
+      row.append(spn === "heart" ? heartCanvas() : spn === "pen" ? penCanvas() : iconCanvas(spn, sheet));
       row.insertAdjacentHTML("beforeend", `<dt>${label}</dt><dd>${val}</dd>`);
       dl.append(row);
     }
@@ -1135,6 +1175,7 @@ function draw(){
   for (let ty = 0; ty < N*2; ty++) for (let tx = 0; tx < N*2; tx++) spr(tiles, G.tiles[ty][tx], tx*8, ty*8);
   for (const pk of G.pickups) {
     if (pk.type === "life") ctx.drawImage(HEART, pk.cx*16, pk.cy*16);
+    else if (pk.type === "pen") ctx.drawImage(PEN_ICON, pk.cx*16, pk.cy*16);
     else spr(SHEET, PICKUP_SPR[pk.type], pk.cx*16, pk.cy*16, 2, 2);
   }
   for (const b of G.bombs) {
@@ -1152,7 +1193,7 @@ function draw(){
   for (const p of ps) {
     if (!p.alive && p.deathT <= 0) continue;
     const a = ANIM[p.dir], fr = p.moving ? p.frame : 0;
-    let sheet = p.boss ? (p.hp <= 1 ? SHEET_BOSS_ANGRY : SHEET_BOSS) : charOf(p.id).sheet;
+    let sheet = p.boss ? bossSheet(p) : charOf(p.id).sheet;
     if (p.boss && p.alive && p.inv && Math.floor(p.inv / 4) % 2) continue;   // blinks while it can't be hurt
     if (!p.alive) { if (Math.floor(p.deathT / 3) % 2) continue; sheet = SHEET_FLASH; }
     spr(sheet, a.f[fr], p.x, p.y - 8, 2, 3, a.flip[fr]);
@@ -1436,14 +1477,19 @@ function stepParticles(){
 }
 
 // ---------- characters ----------
+// each level's boss in enhanced mode: [normal, angry]
 const BOSS_SUITS = [
-  { suit: "#a07cff", shade: "#5a33b8", accent: "#ffd23f", glow: "#d6a8ff" },
-  { suit: "#ff5c7a", shade: "#b3123a", accent: "#ffd23f", glow: "#ff4b4b" },
+  [{ suit: "#4caf50", shade: "#1b5e20", accent: "#ffd23f", glow: "#9cff8a" }, { suit: "#ff5c5c", shade: "#1b5e20", accent: "#ffd23f", glow: "#ff4b4b" }],
+  [{ suit: "#e8a640", shade: "#8a5a1a", accent: "#2a6cff", glow: "#ffd27a" }, { suit: "#ff6a3a", shade: "#8a2a1a", accent: "#2a6cff", glow: "#ff8a5a" }],
+  [{ suit: "#8fdcff", shade: "#2a6aa8", accent: "#ffffff", glow: "#cfefff" }, { suit: "#ff7aa8", shade: "#2a6aa8", accent: "#ffffff", glow: "#ff9ac0" }],
+  [{ suit: "#ff4a1a", shade: "#5a0e04", accent: "#ffb020", glow: "#ff7a2a" }, { suit: "#ffd23f", shade: "#a02a08", accent: "#ff3b30", glow: "#ffe27a" }],
+  [{ suit: "#ffe27a", shade: "#c08a20", accent: "#ffffff", glow: "#fff4c0" }, { suit: "#ff5c7a", shade: "#c08a20", accent: "#ffffff", glow: "#ff9ab0" }],
 ];
+function bossSuit(b){ return BOSS_SUITS[level - 1][b.angry ? 1 : 0]; }
 function blobShadow(c, x, y, rx, ry, a = 0.28){ c.fillStyle = `rgba(0,0,0,${a})`; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); c.fill(); }
 
 function drawBomber(c, p, t){
-  const [x, y] = proj(p.x / 16 + 0.5, p.y / 16 + 0.5), s = p.boss ? BOSS_SUITS[p.hp <= 1 ? 1 : 0] : charOf(p.id).suit;
+  const [x, y] = proj(p.x / 16 + 0.5, p.y / 16 + 0.5), s = p.boss ? bossSuit(p) : charOf(p.id).suit;
   let scale = p.boss ? 1.25 : 1, alpha = 1, spin = 0;
   if (p.boss && p.alive && p.inv && Math.floor(p.inv / 4) % 2) alpha = 0.3;
   if (!p.alive) { const k = p.deathT / 60; scale *= 0.4 + 0.6 * k; alpha = k; spin = (1 - k) * 6; }
@@ -1577,6 +1623,7 @@ const PICK_STYLE = {
   shoe: { a: "#4fc3ff", b: "#1565c0" },
   fire: { a: "#ffb347", b: "#e8590c" },
   bomb: { a: "#b388ff", b: "#5e35b1" },
+  pen:  { a: "#ff5a3a", b: "#6a0d0d" },
 };
 function drawPickup(c, pk, t){
   const [x, y] = cellCenter(pk.cx, pk.cy), st = PICK_STYLE[pk.type], hov = 14 + Math.sin(t * 0.004 + pk.cx) * 3;
@@ -1592,6 +1639,11 @@ function drawPickup(c, pk, t){
     c.beginPath(); c.moveTo(0, -8); c.bezierCurveTo(6, -2, 6, 7, 0, 7); c.bezierCurveTo(-6, 7, -6, 0, -2, -3); c.bezierCurveTo(-1, 0, 1, 0, 0, -8); c.fill();
   } else if (pk.type === "life") {   // heart: one more life
     c.beginPath(); c.moveTo(0, 7); c.bezierCurveTo(-9, 0, -6, -8, 0, -3.5); c.bezierCurveTo(6, -8, 9, 0, 0, 7); c.fill();
+  } else if (pk.type === "pen") {    // penetrator: a bomb with an arrow through it
+    c.fillStyle = "#1b2440"; c.beginPath(); c.arc(-1, 1, 5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = "#fff"; c.lineWidth = 1.8;
+    c.beginPath(); c.moveTo(-9, 1); c.lineTo(5, 1); c.stroke();
+    c.beginPath(); c.moveTo(9, 1); c.lineTo(4, -3); c.lineTo(4, 5); c.closePath(); c.fill();
   } else {                           // bomb: one more bomb at a time
     c.beginPath(); c.arc(-1, 2, 5.5, 0, Math.PI * 2); c.fill();
     c.lineWidth = 1.6; c.beginPath(); c.moveTo(2, -3); c.quadraticCurveTo(4, -7, 7, -6); c.stroke();

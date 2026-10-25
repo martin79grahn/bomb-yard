@@ -62,18 +62,20 @@ static u8 vlen;
 #define IT_FIRE 2
 #define IT_BOMB 3
 
+#define LEVELS      5
 #define FUSE        180
 #define FLAME_TIME  60
 #define MAX_BOMBS   24          /* bomb slots for everyone; a player has no limit of their own */
 #define MAX_SPEEDUPS 4
 /* power-ups hidden under the stones of each arena */
 #define POOL_LIFE   1           /* 1 player only; bombs, fire and shoes: opt_items each */
-#define LEVELS      5
+#define POOL_PEN    2           /* penetrator bombs */
 #define ROUND_SECS  180         /* three minutes per level */
 #define STRESS_SECS 20
 
 /* RAM is tight (2 KB), so each cell packs several fields into one byte:
-   cell:  bits 0-1 type, bits 2-3 item (also hidden under stone), bit 4 bomb, bit 7 tufted grass
+   cell:  bits 0-1 type, bits 2-3 item (also hidden under stone), bit 4 bomb, bit 6 penetrator,
+          bit 7 tufted grass
    flame: bits 0-6 frames left to burn, bit 7 "needs redrawing" */
 static u8 cell[CELLS];
 static u8 flame[CELLS];
@@ -86,7 +88,10 @@ static u8 dq_head, dq_tail;
 /* the extra life (1 player only): a shoe item with the tuft bit set, since the item field is
    full; the tuft only matters for empty floor */
 #define IS_LIFE(ci)     (ITEM(ci) == IT_SHOE && (cell[ci] & TUFT))
-#define SET_ITEM(ci, v) (cell[ci] = (cell[ci] & ~0x0C) | ((v) << 2))
+/* the penetrator bomb: a bomb item with its own bit */
+#define PEN             0x40
+#define IS_PEN(ci)      (ITEM(ci) == IT_BOMB && (cell[ci] & PEN))
+#define SET_ITEM(ci, v) (cell[ci] = (cell[ci] & ~(0x0C | PEN)) | ((v) << 2))
 #define HAS_BOMB        0x10
 #define BOMB(ci)        (cell[ci] & HAS_BOMB)
 #define FLAME(ci)       (flame[ci] & 0x7F)
@@ -98,20 +103,26 @@ static u8 attr[64];
 
 /* the bomb slots live in the zero page, which has room to spare */
 #pragma bss-name (push, "ZEROPAGE")
-static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_BOMBS], b_owner[MAX_BOMBS];
+static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_BOMBS], b_owner[MAX_BOMBS], b_pen[MAX_BOMBS];
 #pragma bss-name (pop)
 
 /* players: index 0 is controller 1, index 1 is controller 2 (2-player mode only) */
 #define NPL 2
 static u8 px[NPL], py[NPL], pcx[NPL], pcy[NPL], pmoving[NPL], pdir[NPL], pleft[NPL], pfrac[NPL];
 static u8 pspeed[NPL], pups[NPL], pfire[NPL], pbombs[NPL], pactive[NPL];
+static u8 ppen[NPL];          /* has the penetrator: blasts go through stone. Lost on dying */
 static s8 pdx[NPL], pdy[NPL];
 static u8 pbuf[NPL], pbuft[NPL];   /* a direction pressed a moment ago, and frames left to take it */
 static u8 palive[NPL], pdeath[NPL], panim[NPL], pframe[NPL], ppending[NPL], pburned[NPL];
 static u8 pl;                 /* the player being updated */
-/* the boss (1 player, between levels 1 and 2) uses player slot 1 */
-#define BOSS_HP     3
-#define BOSS_SPEED  14
+/* a boss waits after every level (1 player) in player slot 1, in that level's colours,
+   and each one is tougher: hits to beat, bombs, blast, speed, and when it turns angry */
+static const u8 BOSS_HP[LEVELS]    = { 3,  4,  4,  5,  6 };
+static const u8 BOSS_ANGRY[LEVELS] = { 2,  2,  2,  3,  3 };   /* hits taken before it gets angry */
+static const u8 BOSS_BOMBS[LEVELS] = { 2,  2,  3,  3,  3 };   /* one more when angry */
+static const u8 BOSS_FIRE_R[LEVELS] = { 5, 5,  6,  6,  7 };
+static const u8 BOSS_SPEED[LEVELS] = { 14, 15, 15, 16, 17 };  /* 5 faster when angry */
+static const u8 BOSS_REST[LEVELS]  = { 30, 26, 22, 18, 14 };  /* frames between its bombs */
 static u8 boss;               /* this is the boss stage */
 static u8 bhits, binv, bwait; /* hits taken, frames it can't be hurt, frames before it may bomb again */
 static u8 nplayers;           /* 1 = vs the Krax, 2 = versus */
@@ -173,8 +184,14 @@ static const u8 PALETTES[LEVELS][32] = {
   { 0x31,0x30,0x21,0x30,  0x31,0x30,0x27,0x02,  0x31,0x16,0x27,0x38,  0x31,0x0F,0x30,0x27,
     0x31,0x0F,0x30,0x16,  0x31,0x0F,0x16,0x36,  0x31,0x0F,0x30,0x27,  0x31,0x0F,0x30,0x27 },
 };
-/* the boss's suit in sprite palette 1: purple, then redder after two hits */
-static const u8 BOSS_PAL[2][3] = { { 0x0F, 0x14, 0x24 }, { 0x0F, 0x15, 0x26 } };
+/* each boss's suit in sprite palette 1, after its level, then redder once it's angry */
+static const u8 BOSS_PAL[LEVELS][2][3] = {
+  { { 0x0F, 0x0A, 0x29 }, { 0x0F, 0x16, 0x29 } },   /* The Yard: jungle green */
+  { { 0x0F, 0x12, 0x28 }, { 0x0F, 0x16, 0x28 } },   /* Sand Pit: lapis and gold */
+  { { 0x0F, 0x21, 0x30 }, { 0x0F, 0x15, 0x30 } },   /* Frost Cave: ice */
+  { { 0x0F, 0x16, 0x27 }, { 0x0F, 0x05, 0x38 } },   /* Lava Peak: molten red */
+  { { 0x0F, 0x28, 0x30 }, { 0x0F, 0x16, 0x38 } },   /* Cloud Nine: gold and white */
+};
 /* the four characters to play as: suit and trim colours (sprite colours 2 and 3) and names */
 static const u8 CHAR_PAL[4][2] = { { 0x30, 0x16 }, { 0x16, 0x36 }, { 0x12, 0x31 }, { 0x28, 0x17 } };
 static const char* const CHAR_NAME[4] = { "BIT ", "RUBY", "SKY ", "NOVA" };
@@ -465,6 +482,7 @@ static void cell_look(u8 ci) {
   else if (TYPE(ci) == CEMENT) { t = 0x40; c = 1; }
   else if (TYPE(ci) == STONE) { t = 0x42; c = 1; }
   else if (IS_LIFE(ci)) { t = 0x2C; c = 3; }
+  else if (IS_PEN(ci)) { t = 0xA0; c = 3; }
   else if (ITEM(ci) == IT_SHOE) { t = 0x4A; c = 3; }
   else if (ITEM(ci) == IT_BOMB) { t = 0x4C; c = 3; }
   else if (ITEM(ci) == IT_FIRE) { t = 0x60; c = 3; }
@@ -528,7 +546,8 @@ static u8 is_safe(u8 cx, u8 cy) {
   return (x == 1 && y <= 3) || (y == 1 && x <= 3);
 }
 
-/* put n items under stones that hide nothing yet. it | 0x20 is an extra life (the tuft bit) */
+/* put n items under stones that hide nothing yet. it | 0x20 is an extra life (the tuft bit),
+   it | PEN a penetrator bomb */
 static void hide_items(u8 it, u8 n) {
   u16 tries = 1000;
   u8 ci;
@@ -537,6 +556,7 @@ static void hide_items(u8 it, u8 n) {
     if (ci >= CELLS || TYPE(ci) != STONE || ITEM(ci)) continue;
     SET_ITEM(ci, it & 3);
     if (it & 0x20) cell[ci] |= TUFT;
+    cell[ci] |= it & PEN;
     --n;
   }
 }
@@ -554,6 +574,7 @@ static void build_map(void) {
   dq_head = dq_tail = 0;
   for (k = 0; k < MAX_BOMBS; ++k) b_used[k] = 0;
   if (nplayers == 1) hide_items(IT_SHOE | 0x20, POOL_LIFE);   /* 0x20: the life's tuft bit, see below */
+  hide_items(IT_BOMB | PEN, POOL_PEN);
   hide_items(IT_BOMB, opt_items);
   hide_items(IT_FIRE, opt_items);
   hide_items(IT_SHOE, opt_items);
@@ -586,10 +607,10 @@ static void hud_krax(void) {
   hud[5] = '0' + (malive[0] ? 1 : 0) + (malive[1] ? 1 : 0); hud[6] = 0;
   vtext(nplayers == 2 ? 13 : 25, nplayers == 2 ? 1 : 2, hud);
 }
-/* "B1 F1 S0": bombs, blast range (fire) and speed-ups of player p */
+/* "B1 F1 S0": bombs (P with the penetrator), blast range (fire) and speed-ups of player p */
 static void hud_stats(u8 p) {
   char* s = hud;
-  *s++ = 'B'; s = put_num(s, pbombs[p]); *s++ = ' ';
+  *s++ = ppen[p] ? 'P' : 'B'; s = put_num(s, pbombs[p]); *s++ = ' ';   /* P: penetrator bombs */
   *s++ = 'F'; s = put_num(s, pfire[p]); *s++ = ' ';
   *s++ = 'S'; *s++ = '0' + pups[p]; *s++ = ' '; *s = 0;
   vtext(p ? 22 : 1, nplayers == 2 ? 1 : 2, hud);
@@ -597,7 +618,7 @@ static void hud_stats(u8 p) {
 /* boss stage: "BOSS 3", hits it can still take */
 static void hud_boss(void) {
   hud[0] = 'B'; hud[1] = 'O'; hud[2] = 'S'; hud[3] = 'S'; hud[4] = ' ';
-  hud[5] = '0' + BOSS_HP - bhits; hud[6] = 0;
+  hud[5] = '0' + BOSS_HP[level] - bhits; hud[6] = 0;
   vtext(25, 2, hud);
 }
 /* 1 player: "LIVES 3" */
@@ -639,16 +660,18 @@ static u8 bomb_at(u8 ci) {
   return 0;
 }
 
+static u8 bpen;                /* the bomb going off is a penetrator */
 static void blast_line(u8 start, u8 range, u8 d) {
   u8 ci = start, n;
   for (n = 0; n < range; ++n) {
     ci += DSTEP[d];
     if (TYPE(ci) == CEMENT) return;
     if (TYPE(ci) == STONE) {
-      t = cell[ci] & (TUFT | 0x0C);   /* what hides under it shows when the fire is out */
+      t = cell[ci] & (TUFT | PEN | 0x0C);   /* what hides under it shows when the fire is out */
       cell[ci] = FLOOR;
       add_flame(ci);
       cell[ci] |= t;
+      if (bpen) continue;              /* a penetrator blasts on through the stone */
       return;
     }
     add_flame(ci);
@@ -664,7 +687,7 @@ static void explode(u8 b) {
   b_used[b] = 0;
   cell[ci] &= ~HAS_BOMB;
   if (pactive[o]) --pactive[o];
-  fowner = o;
+  fowner = o; bpen = b_pen[b];
   sfx_boom();
   add_flame(ci);
   for (d = 0; d < 4; ++d) blast_line(ci, r, d);
@@ -675,7 +698,7 @@ static void place_bomb(void) {
   if (!palive[pl] || pactive[pl] >= pbombs[pl] || BOMB(ci)) return;
   for (k = 0; k < MAX_BOMBS; ++k) if (!b_used[k]) break;
   if (k == MAX_BOMBS) return;
-  b_used[k] = 1; b_cell[k] = ci; b_fuse[k] = FUSE; b_range[k] = pfire[pl]; b_owner[k] = pl;
+  b_used[k] = 1; b_cell[k] = ci; b_fuse[k] = FUSE; b_range[k] = pfire[pl]; b_owner[k] = pl; b_pen[k] = ppen[pl];
   cell[ci] |= HAS_BOMB;
   ++pactive[pl];
   sfx_place();
@@ -746,9 +769,10 @@ static void collect(void) {
     hud_lives();
     return;
   }
-  if (t == IT_SHOE && pups[pl] < MAX_SPEEDUPS) { ++pups[pl]; pspeed[pl] += 4; }
-  if (t == IT_FIRE && pfire[pl] < 99) ++pfire[pl];
-  if (t == IT_BOMB && pbombs[pl] < 99) ++pbombs[pl];
+  if (IS_PEN(ci)) ppen[pl] = 1;
+  else if (t == IT_SHOE && pups[pl] < MAX_SPEEDUPS) { ++pups[pl]; pspeed[pl] += 4; }
+  else if (t == IT_FIRE && pfire[pl] < 99) ++pfire[pl];
+  else if (t == IT_BOMB && pbombs[pl] < 99) ++pbombs[pl];
   SET_ITEM(ci, 0);
   mark(ci);
   sfx_pickup();
@@ -781,7 +805,7 @@ static void update_player(void) {
   }
 }
 
-static void kill_player(u8 p) { palive[p] = 0; pdeath[p] = 60; sfx_die(); }
+static void kill_player(u8 p) { palive[p] = 0; pdeath[p] = 60; ppen[p] = 0; sfx_die(); }
 
 /* ---------- the boss ----------
    A bomber with its own mind, in player slot 1. It thinks at each cell centre: run from
@@ -844,7 +868,7 @@ static u8 boss_think(void) {
             TYPE(ci + DSTEP[want]) == STONE || rand8() < 6)) {
     vb_cell = ci; vb_on = 1;
     d = escape_dir();
-    if (d != 0xFF) { place_bomb(); bwait = 30; return d; }
+    if (d != 0xFF) { place_bomb(); bwait = BOSS_REST[level]; return d; }
     vb_on = 0;
   }
   if (boss_safe(ci + DSTEP[want]) && rand8() < 200) return want;
@@ -874,7 +898,7 @@ static void update_boss(void) {
 
 /* the boss's suit colours (rendering off, or queued when on) */
 static void boss_palette(u8 queued) {
-  const u8* p = BOSS_PAL[bhits >= 2];
+  const u8* p = BOSS_PAL[level][bhits >= BOSS_ANGRY[level]];
   if (queued) {
     vram_buf[vlen++] = 3; vram_buf[vlen++] = 0x3F; vram_buf[vlen++] = 0x15;
     for (i = 0; i < 3; ++i) vram_buf[vlen++] = p[i];
@@ -887,8 +911,10 @@ static void boss_palette(u8 queued) {
 
 static void hit_boss(void) {
   ++bhits; binv = 90; sfx_die();
-  if (bhits == 2) { pspeed[1] = BOSS_SPEED + 5; pbombs[1] = 3; boss_palette(1); }   /* angry: redder, quicker, one more bomb */
-  if (bhits >= BOSS_HP) { palive[1] = 0; pdeath[1] = 60; }
+  if (bhits == BOSS_ANGRY[level]) {             /* angry: redder, quicker, one more bomb */
+    pspeed[1] = BOSS_SPEED[level] + 5; pbombs[1] = BOSS_BOMBS[level] + 1; boss_palette(1);
+  }
+  if (bhits >= BOSS_HP[level]) { palive[1] = 0; pdeath[1] = 60; }
   hud_boss();
 }
 
@@ -1007,7 +1033,7 @@ static void reset_player(u8 p, u8 cx, u8 cy, u8 keep) {
   pcx[p] = cx; pcy[p] = cy; px[p] = cx * 16; py[p] = cy * 16;
   pmoving[p] = 0; pdir[p] = 3; pframe[p] = 0; panim[p] = 0; pfrac[p] = 0;
   palive[p] = 1; pdeath[p] = 0; pactive[p] = 0; ppending[p] = 0; pburned[p] = 0;
-  if (!keep) { pspeed[p] = 16; pups[p] = 0; pfire[p] = 1; pbombs[p] = 1; }
+  if (!keep) { pspeed[p] = 16; pups[p] = 0; pfire[p] = 1; pbombs[p] = 1; ppen[p] = 0; }
 }
 
 static void start_level(u8 keep) {
@@ -1034,7 +1060,7 @@ static void start_level(u8 keep) {
   load_palette();
   if (boss) {
     reset_player(1, GW - 2, GH - 2, 0);
-    pfire[1] = 5; pbombs[1] = 2; pspeed[1] = BOSS_SPEED;
+    pfire[1] = BOSS_FIRE_R[level]; pbombs[1] = BOSS_BOMBS[level]; pspeed[1] = BOSS_SPEED[level];
     bhits = 0; binv = 0; bwait = 90;
     boss_palette(0);
   }
@@ -1150,7 +1176,7 @@ static u8 play_level(void) {
   }
 }
 
-/* level 1, the boss, then levels 2 to 5 */
+/* each level, then its boss; after the last boss the game is won */
 static void solo_game(void) {
   level = 0; boss = 0;
   lives = WIN_CHOICES[opt_lives];
@@ -1159,17 +1185,18 @@ static void solo_game(void) {
   for (;;) {
     if (play_level() == R_CLEARED) {
       jingle_pos = 1; jingle_tick = 0;
-      if (level == LEVELS - 1) {
+      if (boss && level == LEVELS - 1) {
         confetti = 1;
-        message_screen("CONGRATULATIONS!", "YOU CLEARED ALL 5 LEVELS", "YOU WIN!   PRESS START", 0);
+        message_screen("CONGRATULATIONS!", "YOU BEAT ALL 5 BOSSES", "YOU WIN!   PRESS START", 0);
+        boss = 0;
         return;
       }
-      if (level == 0 && !boss) {
+      if (!boss) {
         boss = 1;
         message_screen("LEVEL CLEARED", "NEXT UP", "THE BOSS", 150);
       } else {
-        if (boss) { boss = 0; message_screen("BOSS DEFEATED", "NEXT UP", LEVEL_NAME[level + 1], 150); }
-        else message_screen("LEVEL CLEARED", "NEXT UP", LEVEL_NAME[level + 1], 150);
+        boss = 0;
+        message_screen("BOSS DEFEATED", "NEXT UP", LEVEL_NAME[level + 1], 150);
         ++level;
       }
       start_level(1);

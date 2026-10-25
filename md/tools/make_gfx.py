@@ -65,6 +65,17 @@ SUITS = {   # suit shade/mid/light, visor, glint, trim dark/light, boots dark/li
     "nova":  ["#a86a10", "#e8b028", "#fff08a", "#2a1440", "#ff7ad0", "#5a28a8", "#9a62ff", "#3a2014", "#6a4428"],
     "boss":  ["#3e2478", "#7048c8", "#a888ff", "#140c24", "#ff5a5a", "#a87a10", "#ffd84a", "#241430", "#4a2c5a"],
     "angry": ["#801440", "#cc2c62", "#ff7aa0", "#140c24", "#ffe04a", "#a87a10", "#ffd84a", "#241430", "#4a2c5a"],
+    # one boss per level in that level's style, and redder once it's angry
+    "boss_yard":   ["#1a5a20", "#2e9a34", "#7ad86a", "#0c1a0c", "#ffe04a", "#a87a10", "#ffd84a", "#2a1a0c", "#5a3a1a"],
+    "angry_yard":  ["#801414", "#cc2c2c", "#ff8a7a", "#0c1a0c", "#ffe04a", "#1a5a20", "#2e9a34", "#2a1a0c", "#5a3a1a"],
+    "boss_sand":   ["#1a3a8a", "#2a64d0", "#7ab0ff", "#140c24", "#ffd84a", "#a87a10", "#ffd84a", "#4a2a18", "#8a5a30"],
+    "angry_sand":  ["#8a2a10", "#d0582a", "#ffa070", "#140c24", "#ffd84a", "#a87a10", "#ffd84a", "#4a2a18", "#8a5a30"],
+    "boss_frost":  ["#1c3a6a", "#3a7ac8", "#c8ecff", "#102040", "#5ad8ff", "#e8f6ff", "#ffffff", "#203050", "#4a6a90"],
+    "angry_frost": ["#80205a", "#c84a8a", "#ffa0d0", "#102040", "#ffffff", "#e8f6ff", "#ffffff", "#203050", "#4a6a90"],
+    "boss_lava":   ["#6a0c04", "#d02a0a", "#ff8a3a", "#1a0804", "#ffd84a", "#3a3a40", "#7a7a84", "#1a1010", "#3a2a2a"],
+    "angry_lava":  ["#a05a00", "#ffb020", "#fff08a", "#1a0804", "#ff3b30", "#3a3a40", "#7a7a84", "#1a1010", "#3a2a2a"],
+    "boss_cloud":  ["#a07a10", "#e8c040", "#fff4b0", "#2a2050", "#5ad8ff", "#7a90c0", "#ffffff", "#806020", "#c0a050"],
+    "angry_cloud": ["#901838", "#e04a6a", "#ffa0b8", "#2a2050", "#ffe04a", "#7a90c0", "#ffffff", "#806020", "#c0a050"],
 }
 
 
@@ -76,7 +87,8 @@ PALETTES = {
     "arena": [[md(hexrgb(c)) for c in pal0(t)] for t in ("yard", "sand", "frost", "boss", "lava", "cloud")],
     "items": [md(hexrgb(c)) for c in PAL1],
     # the four characters (Bit, Ruby, Sky, Nova), then the boss and the angry boss
-    "sprites": [[md(hexrgb(c)) for c in sprite_pal(s)] for s in ("p1", "p2", "sky", "nova", "boss", "angry")],
+    "sprites": [[md(hexrgb(c)) for c in sprite_pal(s)] for s in ("p1", "p2", "sky", "nova") +
+                tuple(f"{m}_{t}" for t in ("yard", "sand", "frost", "lava", "cloud") for m in ("boss", "angry"))],
 }
 
 # ---------------------------------------------------------------- canvas helpers
@@ -394,10 +406,30 @@ def heart_pic():
     return p
 
 
+def item_pen():
+    """The penetrator bomb: a bomb with a red arrow driven right through it."""
+    p = bubble()
+    fill_sphere(p, 7.0, 8.5, 3.8, (1, 2, 3), cuts=(0.3, 0.75))
+    p.set(6, 6, 5)
+    for x, y in ((9, 4), (10, 3)):
+        p.set(x, y, 6)
+    p.set(11, 2, 10)
+    for x in range(2, 12):                       # the shaft
+        p.set(x, 9, 8); p.set(x, 10, 7)
+    for x, h in ((11, 2), (12, 2), (13, 1), (14, 0)):   # the head
+        for y in range(9 - h, 11 + h):
+            p.set(x, y, 10 if y < 10 else 9)
+    for y in (7, 8, 11, 12):                     # fletching
+        p.set(2, y, 5); p.set(3, y, 5)
+    p.outline()
+    return p
+
+
 consts["T_ITEM_SHOE"] = add_cell(item_skate(), False)[0]
 consts["T_ITEM_FIRE"] = add_cell(item_fire(), False)[0]
 consts["T_ITEM_BOMB"] = add_cell(item_bomb(), False)[0]
 consts["T_ITEM_LIFE"] = add_cell(heart_pic(), False)[0]
+consts["T_ITEM_PEN"] = add_cell(item_pen(), False)[0]
 
 
 # ---------------------------------------------------------------- font and boxes (PAL0)
@@ -685,7 +717,7 @@ with open(os.path.join(OUT, "gfx.h"), "w") as f:
     for k, v in consts.items():
         f.write(f"#define {k} {v}\n")
     f.write("\nextern const u32 GFX_TILES[];\n")
-    f.write("extern const u16 PAL_ARENA[6][16];\nextern const u16 PAL_ITEMS[16];\nextern const u16 PAL_SPRITES[6][16];\n")
+    f.write("extern const u16 PAL_ARENA[6][16];\nextern const u16 PAL_ITEMS[16];\nextern const u16 PAL_SPRITES[14][16];\n")
     for k, v in arrays.items():
         f.write(f"extern const u16 {k}[{len(v)}];\n")
 with open(os.path.join(OUT, "gfx.c"), "w") as f:
@@ -699,7 +731,7 @@ with open(os.path.join(OUT, "gfx.c"), "w") as f:
         return f"const u16 {name} = {{" + ",".join(f"0x{v:04X}" for v in vals) + "};\n"
     f.write("const u16 PAL_ARENA[6][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["arena"]) + "\n};\n")
     f.write(arr("PAL_ITEMS[16]", PALETTES["items"]))
-    f.write("const u16 PAL_SPRITES[6][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["sprites"]) + "\n};\n")
+    f.write("const u16 PAL_SPRITES[14][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["sprites"]) + "\n};\n")
     for k, v in arrays.items():
         f.write(f"const u16 {k}[{len(v)}] = {{" + ",".join(str(x) for x in v) + "};\n")
 print(f"gfx: {len(tiles)} tiles")
