@@ -88,6 +88,10 @@ button:focus-visible { outline: 3px solid var(--p2); outline-offset: 3px; }
 .dpad div, .bombbtn { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; color: var(--muted); font: 700 18px var(--display); }
 .dpad .on, .bombbtn.on { background: var(--line); color: var(--ink); }
 .bombbtn { width: 84px; height: 84px; border-radius: 50%; color: var(--spark); font-size: 14px; }
+/* the remote's button, lit while you hold it (it drops bombs too) */
+.btns { display: flex; align-items: flex-start; gap: 10px; }
+.bombbtn.remotebtn { width: 60px; height: 60px; font-size: 11px; color: var(--muted); }
+.bombbtn.remotebtn.ready { color: #3ad17a; border-color: #3ad17a; }
 @media (pointer: coarse) { .pad { display: flex; } }
 
 @media (max-width: 760px) {
@@ -125,6 +129,7 @@ button:focus-visible { outline: 3px solid var(--p2); outline-offset: 3px; }
   .keys { display: none; }
   .dpad { grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); }
   .bombbtn { width: 80px; height: 80px; }
+  .bombbtn.remotebtn { width: 58px; height: 58px; }
 
   /* Two players on one phone: P2's pad sits above the arena, turned to face
      a player sitting opposite. Pads shrink so both fit with the arena. */
@@ -142,6 +147,7 @@ button:focus-visible { outline: 3px solid var(--p2); outline-offset: 3px; }
   body.enh.two .screen { width: min(100%, calc((100vh - 360px) * var(--enh-ar, 1.75))); width: min(100%, calc((100svh - 360px) * var(--enh-ar, 1.75))); }
   body.two .dpad { grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); }
   body.two .bombbtn { width: 68px; height: 68px; font-size: 12px; }
+  body.two .bombbtn.remotebtn { width: 50px; height: 50px; font-size: 10px; }
 }
 .pad.p2 .bombbtn { color: var(--p2); }
 body:not(.two) .pad.p2 { display: none; }
@@ -209,7 +215,7 @@ body:not(.two) .pad.p2 { display: none; }
       <div data-d="r">◀</div><span></span><div data-d="l">▶</div>
       <span></span><div data-d="u">▼</div><span></span>
     </div>
-    <div class="bombbtn">BOMB</div>
+    <div class="btns"><div class="bombbtn remotebtn">BOOM</div><div class="bombbtn">BOMB</div></div>
   </div>
 
   <div class="pad" id="pad" data-p="0">
@@ -218,7 +224,7 @@ body:not(.two) .pad.p2 { display: none; }
       <div data-d="l">◀</div><span></span><div data-d="r">▶</div>
       <span></span><div data-d="d">▼</div><span></span>
     </div>
-    <div class="bombbtn" id="padBomb">BOMB</div>
+    <div class="btns"><div class="bombbtn remotebtn">BOOM</div><div class="bombbtn" id="padBomb">BOMB</div></div>
   </div>
 
   <div class="bar">
@@ -293,7 +299,7 @@ function spr(sheet, n, x, y, w = 1, h = 1, flip = false, c = ctx){
 // ---------- constants from the cart ----------
 const BOMB_SPR = 70, SHOE_SPR = 74, BOMB_POWER_SPR = 76, FIRE_POWER_SPR = 96;
 const CEMENT = 0x40, STONE = 0x42, GRASS = 0x44;
-const FUSE = 180, FLAME_TIME = 60, MAX_SPEEDUPS = 4, SPEED_STEP = 0.25;   // 4 shoes take you from 1 to 2 px/frame (8 frames per cell)
+const FUSE = 180, FLAME_TIME = 32, MAX_SPEEDUPS = 4, SPEED_STEP = 0.25;   // 4 shoes take you from 1 to 2 px/frame (8 frames per cell)
 const ANIM = {
   l: { f: [8,10,12,10],  flip: [false,false,false,false] },
   r: { f: [8,10,12,10],  flip: [true,true,true,true] },
@@ -302,7 +308,7 @@ const ANIM = {
 };
 const DIRS = { l: [-1,0], r: [1,0], u: [0,-1], d: [0,1] };
 const MONSTER_SPR = 78, MONSTER_COUNT = 2;
-const ROUND_TIME = 3 * 60 * 60, STRESS_TIME = 20 * 60;   // three minutes per round (60 frames a second); music speeds up for the last 20 s
+const ROUND_TIME = 2 * 60 * 60, STRESS_TIME = 20 * 60;   // two minutes per round (60 frames a second); music speeds up for the last 20 s
 // six levels in 1-player mode: new colours for floor and blocks, and the monsters get a bit quicker
 const LEVELS = [
   { name: "The Yard",   monsterSpeed: 0.5,  remap: null },
@@ -492,7 +498,7 @@ let wins = [0, 0];
 let level = 1;           // 1-player level, 1..LEVELS.length
 let boss = false;        // 1-player boss stage, after every level (level stays the same)
 // power-ups hidden under the stones of each arena: one heart (1-player game only) and opts.items of each other kind
-function pool(){ return { life: mode === "cpu" ? 1 : 0, pen: PEN_COUNT, bomb: opts.items, fire: opts.items, shoe: opts.items }; }
+function pool(){ return { life: mode === "cpu" ? 1 : 0, pen: PEN_COUNT, rem: REM_COUNT, bomb: opts.items, fire: opts.items, shoe: opts.items }; }
 // each boss is tougher than the last: hits to beat, hits before it gets angry (then one more bomb
 // and faster), bombs, blast, speed, and how often it hesitates
 const BOSSES = [
@@ -504,6 +510,7 @@ const BOSSES = [
   { hp: 7, angryAt: 4, bombs: 4, fire: 7, speed: 1.15,  angrySpeed: 1.45, hesitate: 0.025 },
 ];
 const PEN_COUNT = 2;     // penetrator bombs hidden in every arena
+const REM_COUNT = 2;     // remote controls hidden in every arena
 // 2-player options, kept between visits: arena (-1 = a new one every round), monsters, wins needed
 const opts = { arena: -1, monsters: false, wins: 3, lives: 3, items: 5, chars: [0, 1] };
 try { Object.assign(opts, JSON.parse(localStorage.getItem("by-opts") || "{}")); } catch (e) {}
@@ -663,9 +670,20 @@ function updateMonster(m){
   }
 }
 
+// the remote: all of p's remote bombs go off at once
+function setOff(p){ for (const b of G.bombs.filter(b => b.owner === p && b.rem)) explode(b); }
+// a fire that kills: not the dust of a stone that was just broken
+function hotAt(cx, cy){ const f = flameAt(cx, cy); return f && !f.rubble ? f : null; }
+// out of the round; the penetrator and the remote are lost, and the remote's bombs tick again
+function killPlayer(p){
+  p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, charOf(p.id).suit.glow);
+  p.pen = false;
+  if (p.rem) { p.rem = false; for (const b of G.bombs) if (b.owner === p && b.rem) { b.rem = false; b.fuse = FUSE; } renderHud(); }
+}
+
 function placeBomb(p){
   if (!p.alive || p.active >= p.bombs || bombAt(p.cx, p.cy)) return false;
-  G.bombs.push({ cx: p.cx, cy: p.cy, fuse: FUSE, owner: p, range: p.fire, pen: !!p.pen });
+  G.bombs.push({ cx: p.cx, cy: p.cy, fuse: FUSE, owner: p, range: p.fire, pen: !!p.pen, rem: !!p.rem });
   p.active++; SFX.place(); return true;
 }
 
@@ -714,6 +732,7 @@ function collect(p){
   if (pk.type === "fire") p.fire++;
   if (pk.type === "bomb") p.bombs++;
   if (pk.type === "pen") p.pen = true;
+  if (pk.type === "rem") p.rem = true;
   if (pk.type === "life") { lives = Math.min(99, lives + 1); SFX.heart(); renderHud(); return; }
   SFX.pickup(); renderHud();
 }
@@ -785,18 +804,18 @@ function tick(){
   G.t++;
   for (const p of G.players) updatePlayer(p);
   for (const m of G.monsters) updateMonster(m);
-  for (const b of [...G.bombs]) if (--b.fuse <= 0) explode(b);
+  for (const b of [...G.bombs]) if (!b.rem && --b.fuse <= 0) explode(b);   // a remote bomb waits for its owner
   for (let i = G.flames.length - 1; i >= 0; i--) if (--G.flames[i].t <= 0) G.flames.splice(i, 1);
   for (const p of G.players) {
     if (!p.alive) continue;
-    if (p.boss) { const f = flameAt(Math.round(p.x/16), Math.round(p.y/16)); if (!p.inv && f && !f.bossOnly) hitBoss(p); continue; }   // its own fire can't hurt it
-    if (!immortal(p) && flameAt(Math.round(p.x/16), Math.round(p.y/16))) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, charOf(p.id).suit.glow); }
+    if (p.boss) { const f = hotAt(Math.round(p.x/16), Math.round(p.y/16)); if (!p.inv && f && !f.bossOnly) hitBoss(p); continue; }   // its own fire can't hurt it
+    if (!immortal(p) && hotAt(Math.round(p.x/16), Math.round(p.y/16))) killPlayer(p);
   }
   for (const m of G.monsters) {
     if (!m.alive) continue;
-    if (flameAt(Math.round(m.x/16), Math.round(m.y/16))) { m.alive = false; m.deathT = 40; SFX.pickup(); fxPop(m.x, m.y, "#ffffff"); renderHud(); continue; }
+    if (hotAt(Math.round(m.x/16), Math.round(m.y/16))) { m.alive = false; m.deathT = 40; SFX.pickup(); fxPop(m.x, m.y, "#ffffff"); renderHud(); continue; }
     for (const p of G.players)
-      if (p.alive && !immortal(p) && Math.abs(p.x - m.x) < 11 && Math.abs(p.y - m.y) < 11) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, charOf(p.id).suit.glow); }
+      if (p.alive && !immortal(p) && Math.abs(p.x - m.x) < 11 && Math.abs(p.y - m.y) < 11) killPlayer(p);
   }
   for (const pk of G.pickups) pk.fresh = false;
 
@@ -829,7 +848,7 @@ function hitBoss(b){
 // ---------- 1-player levels ----------
 function soloDied(){
   lives = Math.max(0, lives - 1);
-  if (carry) carry.pen = false;                // the penetrator is lost when you die
+  if (carry) carry.pen = carry.rem = false;    // the penetrator and the remote are lost when you die
   const why = G.timeUp ? "Time's up" : boss ? "The boss got you" : arena() === SEA ? "A fish got you" : "The monsters got you";
   if (lives === 0) {
     phase = "matchover"; renderHud();
@@ -841,7 +860,7 @@ function soloDied(){
   setTimeout(() => { if (phase === "roundover") { newRound(); hideOverlay(); phase = "play"; } }, 1800);
 }
 function soloCleared(p){
-  carry = { speed: p.speed, speedUps: p.speedUps, fire: p.fire, bombs: p.bombs, pen: !!p.pen };
+  carry = { speed: p.speed, speedUps: p.speedUps, fire: p.fire, bombs: p.bombs, pen: !!p.pen, rem: !!p.rem };
   if (boss && level >= LEVELS.length) {
     boss = false;
     phase = "victory"; SFX.win(); renderHud();
@@ -897,7 +916,7 @@ function blastCells(cx, cy, range, pen = false){
 }
 // frames until each cell burns (0 = burning now); chained bombs inherit the earliest fuse
 function dangerMap(extra){
-  const bombs = G.bombs.map(b => ({ cx: b.cx, cy: b.cy, range: b.range, t: b.fuse, pen: b.pen }));
+  const bombs = G.bombs.map(b => ({ cx: b.cx, cy: b.cy, range: b.range, t: b.rem ? 20 : b.fuse, pen: b.pen }));   // a remote bomb can go any moment
   if (extra) bombs.push(extra);
   for (let pass = 0; pass < 3; pass++) for (const b of bombs)
     for (const [x, y] of blastCells(b.cx, b.cy, b.range, b.pen)) {
@@ -974,11 +993,11 @@ const held = new Set();
 const order = [[], []];        // most recent direction wins, per player
 const BIND = {
   "2p": [
-    { l: ["KeyA"], r: ["KeyD"], u: ["KeyW"], d: ["KeyS"], b: ["Space", "KeyF", "KeyQ"] },
-    { l: ["ArrowLeft"], r: ["ArrowRight"], u: ["ArrowUp"], d: ["ArrowDown"], b: ["Enter", "Slash", "ShiftRight", "Period"] },
+    { l: ["KeyA"], r: ["KeyD"], u: ["KeyW"], d: ["KeyS"], b: ["Space", "KeyF", "KeyQ"], x: ["KeyE", "KeyG"] },
+    { l: ["ArrowLeft"], r: ["ArrowRight"], u: ["ArrowUp"], d: ["ArrowDown"], b: ["Enter", "Slash", "Period"], x: ["ShiftRight", "Comma"] },
   ],
   cpu: [
-    { l: ["ArrowLeft", "KeyA"], r: ["ArrowRight", "KeyD"], u: ["ArrowUp", "KeyW"], d: ["ArrowDown", "KeyS"], b: ["Space", "KeyX", "KeyZ", "Enter"] },
+    { l: ["ArrowLeft", "KeyA"], r: ["ArrowRight", "KeyD"], u: ["ArrowUp", "KeyW"], d: ["ArrowDown", "KeyS"], b: ["Space", "KeyX", "Enter"], x: ["KeyZ", "KeyC", "ShiftLeft", "ShiftRight"] },
     null,
   ],
 };
@@ -993,6 +1012,12 @@ const TAP_FRAMES = 14;
 function pressDir(id, d){ tap[id] = d; tapT[id] = TAP_FRAMES; const o = order[id]; const i = o.indexOf(d); if (i >= 0) o.splice(i, 1); o.push(d); }
 function releaseDir(id, d){ const o = order[id]; const i = o.indexOf(d); if (i >= 0) o.splice(i, 1); }
 function pressBomb(id){ if (phase === "play" && G) { const p = G.players[id]; if (p && p.alive && !p.cpu) p.pending = true; } }
+// the other button: sets off your bombs with the remote, else drops one like the bomb button
+function pressRemote(id){
+  if (phase !== "play" || !G) return;
+  const p = G.players[id];
+  if (p && p.alive && !p.cpu && p.rem) setOff(p); else pressBomb(id);
+}
 
 addEventListener("keydown", e => {
   audio();
@@ -1006,6 +1031,7 @@ addEventListener("keydown", e => {
     const b = bindFor(id); if (!b) continue;
     for (const d of ["l","r","u","d"]) if (b[d].includes(e.code)) pressDir(id, d);
     if (b.b.includes(e.code)) pressBomb(id);
+    if (b.x.includes(e.code)) pressRemote(id);
   }
 });
 addEventListener("keyup", e => {
@@ -1025,10 +1051,12 @@ document.querySelectorAll(".pad").forEach(pad => {
     const up = () => { el.classList.remove("on"); releaseDir(id, d); };
     el.addEventListener("pointerup", up); el.addEventListener("pointerleave", up); el.addEventListener("pointercancel", up);
   });
-  const bomb = pad.querySelector(".bombbtn");
-  bomb.addEventListener("pointerdown", e => { e.preventDefault(); audio(); bomb.classList.add("on"); pressBomb(id); });
-  const off = () => bomb.classList.remove("on");
-  bomb.addEventListener("pointerup", off); bomb.addEventListener("pointercancel", off);
+  for (const bomb of pad.querySelectorAll(".bombbtn")) {
+    const remote = bomb.classList.contains("remotebtn");
+    bomb.addEventListener("pointerdown", e => { e.preventDefault(); audio(); bomb.classList.add("on"); (remote ? pressRemote : pressBomb)(id); });
+    const off = () => bomb.classList.remove("on");
+    bomb.addEventListener("pointerup", off); bomb.addEventListener("pointercancel", off);
+  }
 });
 
 // ---------- UI ----------
@@ -1146,6 +1174,23 @@ const PEN_ICON = (() => {
   x.putImageData(img, 0, 0);
   return c;
 })();
+// the remote (as on the NES): the bomb's body with an antenna; the power-up sends radio waves,
+// a laid remote bomb wears a band round its middle
+function remoteArt(item){
+  const c = document.createElement("canvas"); c.width = 16; c.height = 16;
+  const x = c.getContext("2d"), img = x.createImageData(16, 16);
+  const put = (px, py, rgb) => img.data.set([...rgb, 255], (py*16 + px) * 4);
+  const DARK = [29, 43, 83], SHINE = [255, 241, 232], GREEN = [0, 228, 54], RED = [255, 0, 77], WAVE = [255, 163, 0];
+  for (let py = 0; py < 16; py++) for (let px = 0; px < 16; px++) if ((px - 7) ** 2 + (py - 9.5) ** 2 <= 5.4 ** 2) put(px, py, DARK);
+  for (const [px, py] of [[5,6],[4,7],[5,7],[4,8]]) put(px, py, SHINE);
+  for (let py = 1; py < 5; py++) put(7, py, SHINE);
+  for (const [px, py] of [[6,0],[7,0],[8,0],[6,1],[8,1]]) put(px, py, item ? RED : DARK);
+  if (item) for (const [px, py] of [[10,0],[11,1],[10,2],[12,0],[13,1],[13,2],[12,3]]) { put(px, py, WAVE); put(14 - px, py, WAVE); }
+  else for (let px = 2; px <= 12; px++) for (const py of [10, 11]) if ((px - 7) ** 2 + (py - 9.5) ** 2 <= 5.4 ** 2) put(px, py, px === 7 ? SHINE : GREEN);
+  x.putImageData(img, 0, 0);
+  return c;
+}
+const REM_ICON = remoteArt(true), REM_BOMB = remoteArt(false);
 // the Deep Sea's fish (orange with white bands, facing left) and the shark boss (24 x 16, two tail frames)
 function pixelArt(w, h, colours, at){
   const c = document.createElement("canvas"); c.width = w; c.height = h;
@@ -1205,6 +1250,7 @@ function renderHud(){
   lvl.textContent = mode === "2p" ? `${LEVELS[arena()].name.toUpperCase()} · FIRST TO ${winsNeeded()}` : `${debug ? "DEBUG · " : ""}${rush ? `BOSS RUSH ${level}/${LEVELS.length}` : boss ? "BOSS" : `LEVEL ${level}/${LEVELS.length}`} · LIVES ${lives}`;
   for (const id of [0, 1]) {
     const p = (G && G.players[id]) || makePlayer(id, 0, 0, false);
+    document.querySelector(`.pad[data-p="${id}"] .remotebtn`).classList.toggle("ready", !!p.rem);
     const monsters = id === 1 && mode !== "2p";
     // 1-player: P1's pips count cleared levels; 2-player: rounds won
     const solo = mode !== "2p";
@@ -1222,10 +1268,11 @@ function renderHud(){
       ? [arena() === SEA ? ["fish", "Fish left", `${left}/${total}`] : [MONSTER_SPR, "Monsters left", `${left}/${total}`, SHEET_MON]]
       : [[BOMB_POWER_SPR, "Bombs", p.bombs], [FIRE_POWER_SPR, "Blast range", p.fire], [SHOE_SPR, "Speed", `${p.speedUps}/${MAX_SPEEDUPS}`]]
         .concat(p.pen ? [["pen", "Penetrator", "on"]] : [])
+        .concat(p.rem ? [["rem", "Remote", "on"]] : [])
         .concat(mode === "cpu" && id === 0 ? [["heart", "Lives", lives]] : []);
     for (const [spn, label, val, sheet] of rows) {
       const row = document.createElement("div"); row.className = "stat";
-      row.append(spn === "heart" ? heartCanvas() : spn === "pen" ? penCanvas() : spn === "fish" ? copyCanvas(FISH_ICON) : iconCanvas(spn, sheet));
+      row.append(spn === "heart" ? heartCanvas() : spn === "pen" ? penCanvas() : spn === "rem" ? copyCanvas(REM_ICON) : spn === "fish" ? copyCanvas(FISH_ICON) : iconCanvas(spn, sheet));
       row.insertAdjacentHTML("beforeend", `<dt>${label}</dt><dd>${val}</dd>`);
       dl.append(row);
     }
@@ -1234,10 +1281,10 @@ function renderHud(){
 function renderKeys(){
   const k = s => s.split(" ").map(x => `<kbd>${x}</kbd>`).join(" ");
   if (mode === "2p") {
-    document.getElementById("keys1").innerHTML = `Move ${k("W A S D")}<br>Bomb ${k("Space")}`;
-    document.getElementById("keys2").innerHTML = `Move ${k("← ↑ ↓ →")}<br>Bomb ${k("Enter")}`;
+    document.getElementById("keys1").innerHTML = `Move ${k("W A S D")}<br>Bomb ${k("Space")} · remote ${k("E")}`;
+    document.getElementById("keys2").innerHTML = `Move ${k("← ↑ ↓ →")}<br>Bomb ${k("Enter")} · remote ${k("Shift")}`;
   } else {
-    document.getElementById("keys1").innerHTML = `Move ${k("← ↑ ↓ →")} or ${k("WASD")}<br>Bomb ${k("Space")} or ${k("X")}`;
+    document.getElementById("keys1").innerHTML = `Move ${k("← ↑ ↓ →")} or ${k("WASD")}<br>Bomb ${k("Space")} or ${k("X")}<br>Remote ${k("Z")} or ${k("C")}`;
     document.getElementById("keys2").innerHTML = style === "enhanced"
       ? `Slimes wander, beetles charge when they see you down a corridor, wisps float after you. Touch one and you're out.`
       : `Two monsters roam the yard. Touch one and you're out. Blast both to win the round.`;
@@ -1252,9 +1299,15 @@ function draw(){
   for (const pk of G.pickups) {
     if (pk.type === "life") ctx.drawImage(HEART, pk.cx*16, pk.cy*16);
     else if (pk.type === "pen") ctx.drawImage(PEN_ICON, pk.cx*16, pk.cy*16);
+    else if (pk.type === "rem") ctx.drawImage(REM_ICON, pk.cx*16, pk.cy*16);
     else spr(SHEET, PICKUP_SPR[pk.type], pk.cx*16, pk.cy*16, 2, 2);
   }
   for (const b of G.bombs) {
+    if (b.rem) {                     // a remote bomb: its lamp blinks while it waits
+      ctx.drawImage(REM_BOMB, b.cx*16, b.cy*16);
+      if (G.t % 40 < 20) { ctx.fillStyle = "#ff004d"; ctx.fillRect(b.cx*16 + 6, b.cy*16, 3, 2); ctx.fillRect(b.cx*16 + 7, b.cy*16 + 1, 1, 1); }
+      continue;
+    }
     const flash = b.fuse < 60 && Math.floor(b.fuse / 5) % 2 === 0;
     spr(flash ? SHEET_FLASH : SHEET, BOMB_SPR, b.cx*16, b.cy*16, 2, 2);
   }
@@ -1741,6 +1794,15 @@ function drawBomb(c, b, t){
   c.shadowBlur = 0;
   c.fillStyle = "#3a3f55"; roundRect(c, -4, -16, 8, 5, 1.5); c.fill();
   c.fillStyle = "rgba(255,255,255,0.75)"; c.beginPath(); c.ellipse(-5, -6, 3.5, 2.2, -0.7, 0, Math.PI * 2); c.fill();
+  if (b.rem) {                       // a remote bomb: a green band and an antenna with a blinking lamp
+    c.strokeStyle = "#3ad17a"; c.lineWidth = 3.5; c.beginPath(); c.ellipse(0, 2, 12.6, 4, 0, 0.15, Math.PI - 0.15); c.stroke();
+    c.strokeStyle = "#c9ccd6"; c.lineWidth = 1.8; c.beginPath(); c.moveTo(0, -15); c.lineTo(0, -27); c.stroke();
+    const on = Math.floor(t / 333) % 2 === 0;
+    c.shadowColor = "#ff3b30"; c.shadowBlur = on ? 14 : 0; c.fillStyle = on ? "#ff3b30" : "#5a1a1a";
+    c.beginPath(); c.arc(0, -28, 2.8, 0, Math.PI * 2); c.fill();
+    c.restore();
+    return;
+  }
   // the fuse burns down as the timer runs
   const left = b.fuse / FUSE;
   c.strokeStyle = "#c9b48a"; c.lineWidth = 2; c.beginPath(); c.moveTo(0, -15);
@@ -1757,6 +1819,7 @@ const PICK_STYLE = {
   fire: { a: "#ffb347", b: "#e8590c" },
   bomb: { a: "#b388ff", b: "#5e35b1" },
   pen:  { a: "#ff5a3a", b: "#6a0d0d" },
+  rem:  { a: "#3ad17a", b: "#0d6a35" },
 };
 function drawPickup(c, pk, t){
   const [x, y] = cellCenter(pk.cx, pk.cy), st = PICK_STYLE[pk.type], hov = 14 + Math.sin(t * 0.004 + pk.cx) * 3;
@@ -1777,6 +1840,11 @@ function drawPickup(c, pk, t){
     c.fillStyle = "#fff"; c.lineWidth = 1.8;
     c.beginPath(); c.moveTo(-9, 1); c.lineTo(5, 1); c.stroke();
     c.beginPath(); c.moveTo(9, 1); c.lineTo(4, -3); c.lineTo(4, 5); c.closePath(); c.fill();
+  } else if (pk.type === "rem") {    // remote: an antenna sending waves
+    c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(0, 7); c.lineTo(0, -3); c.stroke();
+    c.beginPath(); c.arc(0, -4, 2.2, 0, Math.PI * 2); c.fill();
+    for (const r of [4.5, 7.5]) { c.beginPath(); c.arc(0, -4, r, -0.9, 0.9); c.stroke(); c.beginPath(); c.arc(0, -4, r, Math.PI - 0.9, Math.PI + 0.9); c.stroke(); }
   } else {                           // bomb: one more bomb at a time
     c.beginPath(); c.arc(-1, 2, 5.5, 0, Math.PI * 2); c.fill();
     c.lineWidth = 1.6; c.beginPath(); c.moveTo(2, -3); c.quadraticCurveTo(4, -7, 7, -6); c.stroke();

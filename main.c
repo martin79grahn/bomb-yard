@@ -65,18 +65,19 @@ static u8 vlen;
 #define LEVELS      6
 #define SEA         5           /* the Deep Sea: fish instead of Krax, and a shark for a boss */
 #define FUSE        180
-#define FLAME_TIME  60
+#define FLAME_TIME  32
 #define MAX_BOMBS   24          /* bomb slots for everyone; a player has no limit of their own */
 #define MAX_SPEEDUPS 4
 /* power-ups hidden under the stones of each arena */
 #define POOL_LIFE   1           /* 1 player only; bombs, fire and shoes: opt_items each */
 #define POOL_PEN    2           /* penetrator bombs */
-#define ROUND_SECS  180         /* three minutes per level */
+#define POOL_REM    2           /* remote controls */
+#define ROUND_SECS  120         /* two minutes per level */
 #define STRESS_SECS 20
 
 /* RAM is tight (2 KB), so each cell packs several fields into one byte:
    cell:  bits 0-1 type, bits 2-3 item (also hidden under stone), bit 4 bomb, bit 5 rubble,
-          bit 6 penetrator, bit 7 tufted grass
+          bit 6 penetrator (on a fire item: the remote), bit 7 tufted grass
    flame: bits 0-6 frames left to burn, bit 7 "needs redrawing" */
 static u8 cell[CELLS];
 static u8 flame[CELLS];
@@ -92,12 +93,15 @@ static u8 dq_head, dq_tail;
 /* the penetrator bomb: a bomb item with its own bit */
 #define PEN             0x40
 #define IS_PEN(ci)      (ITEM(ci) == IT_BOMB && (cell[ci] & PEN))
+/* the remote control: a fire item with the same bit */
+#define IS_REM(ci)      (ITEM(ci) == IT_FIRE && (cell[ci] & PEN))
 #define SET_ITEM(ci, v) (cell[ci] = (cell[ci] & ~(0x0C | PEN)) | ((v) << 2))
 #define HAS_BOMB        0x10
-/* a stone that was just blasted: while it burns it still stops other blasts */
+/* a stone that was just blasted: while it burns it still stops other blasts, but it can't hurt */
 #define RUBBLE          0x20
 #define BOMB(ci)        (cell[ci] & HAS_BOMB)
 #define FLAME(ci)       (flame[ci] & 0x7F)
+#define HOT(ci)         (FLAME(ci) && !(cell[ci] & RUBBLE))   /* fire that kills */
 /* cells burning only with the boss's own fire, which can't hurt it (1 bit per cell) */
 static u8 bfire[CELLS / 8];
 static u8 fowner;             /* whose bomb the flames being added come from */
@@ -107,6 +111,7 @@ static u8 attr[64];
 /* the bomb slots live in the zero page, which has room to spare */
 #pragma bss-name (push, "ZEROPAGE")
 static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_BOMBS], b_owner[MAX_BOMBS], b_pen[MAX_BOMBS];
+static u8 b_rem[MAX_BOMBS];   /* a remote bomb: no fuse, its owner sets it off */
 #pragma bss-name (pop)
 
 /* players: index 0 is controller 1, index 1 is controller 2 (2-player mode only) */
@@ -114,6 +119,7 @@ static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_B
 static u8 px[NPL], py[NPL], pcx[NPL], pcy[NPL], pmoving[NPL], pdir[NPL], pleft[NPL], pfrac[NPL];
 static u8 pspeed[NPL], pups[NPL], pfire[NPL], pbombs[NPL], pactive[NPL];
 static u8 ppen[NPL];          /* has the penetrator: blasts go through stone. Lost on dying */
+static u8 prem[NPL];          /* has the remote: B sets off their bombs. Lost on dying */
 static s8 pdx[NPL], pdy[NPL];
 static u8 pbuf[NPL], pbuft[NPL];   /* a direction pressed a moment ago, and frames left to take it */
 static u8 palive[NPL], pdeath[NPL], panim[NPL], pframe[NPL], ppending[NPL], pburned[NPL];
@@ -486,6 +492,8 @@ static void mark(u8 ci) {
   dq_tail = (dq_tail + 1) & (DQ - 1);
 }
 
+static u8 bomb_at(u8 ci);
+
 /* tile + palette for a cell: base tile in t, palette in c */
 static void cell_look(u8 ci) {
   if (FLAME(ci)) {
@@ -493,11 +501,12 @@ static void cell_look(u8 ci) {
     t = (FLAME(ci - 1) ? 1 : 0) | (FLAME(ci + 1) ? 2 : 0) | (FLAME(ci - GW) ? 4 : 0) | (FLAME(ci + GW) ? 8 : 0);
     t = FLAME_PIECE[t]; c = 2;
   }
-  else if (BOMB(ci)) { t = 0x46; c = 3; }
+  else if (BOMB(ci)) { t = b_rem[bomb_at(ci)] ? 0xA4 : 0x46; c = 3; }
   else if (TYPE(ci) == CEMENT) { t = 0x40; c = 1; }
   else if (TYPE(ci) == STONE) { t = 0x42; c = 1; }
   else if (IS_LIFE(ci)) { t = 0x2C; c = 3; }
   else if (IS_PEN(ci)) { t = 0xA0; c = 3; }
+  else if (IS_REM(ci)) { t = 0xA2; c = 3; }
   else if (ITEM(ci) == IT_SHOE) { t = 0x4A; c = 3; }
   else if (ITEM(ci) == IT_BOMB) { t = 0x4C; c = 3; }
   else if (ITEM(ci) == IT_FIRE) { t = 0x60; c = 3; }
@@ -562,7 +571,7 @@ static u8 is_safe(u8 cx, u8 cy) {
 }
 
 /* put n items under stones that hide nothing yet. it | 0x20 is an extra life (the tuft bit),
-   it | PEN a penetrator bomb */
+   it | PEN a penetrator bomb (IT_BOMB) or a remote (IT_FIRE) */
 static void hide_items(u8 it, u8 n) {
   u16 tries = 1000;
   u8 ci;
@@ -590,6 +599,7 @@ static void build_map(void) {
   for (k = 0; k < MAX_BOMBS; ++k) b_used[k] = 0;
   if (nplayers == 1) hide_items(IT_SHOE | 0x20, POOL_LIFE);   /* 0x20: the life's tuft bit, see below */
   hide_items(IT_BOMB | PEN, POOL_PEN);
+  hide_items(IT_FIRE | PEN, POOL_REM);
   hide_items(IT_BOMB, opt_items);
   hide_items(IT_FIRE, opt_items);
   hide_items(IT_SHOE, opt_items);
@@ -624,12 +634,13 @@ static void hud_krax(void) {
   hud[5] = '0' + (malive[0] ? 1 : 0) + (malive[1] ? 1 : 0); hud[6] = 0;
   vtext(nplayers == 2 ? 13 : 25, nplayers == 2 ? 1 : 2, hud);
 }
-/* "B1 F1 S0": bombs (P with the penetrator), blast range (fire) and speed-ups of player p */
+/* "B1 F1 S0 R": bombs (P with the penetrator), blast range (fire), speed-ups and the remote of player p */
 static void hud_stats(u8 p) {
   char* s = hud;
   *s++ = ppen[p] ? 'P' : 'B'; s = put_num(s, pbombs[p]); *s++ = ' ';   /* P: penetrator bombs */
   *s++ = 'F'; s = put_num(s, pfire[p]); *s++ = ' ';
-  *s++ = 'S'; *s++ = '0' + pups[p]; *s++ = ' '; *s = 0;
+  *s++ = 'S'; *s++ = '0' + pups[p]; *s++ = ' ';
+  *s++ = prem[p] ? 'R' : ' '; *s = 0;
   vtext(p ? 22 : 1, nplayers == 2 ? 1 : 2, hud);
 }
 /* boss stage: "BOSS 3", hits it can still take */
@@ -717,15 +728,21 @@ static void place_bomb(void) {
   for (k = 0; k < MAX_BOMBS; ++k) if (!b_used[k]) break;
   if (k == MAX_BOMBS) return;
   b_used[k] = 1; b_cell[k] = ci; b_fuse[k] = FUSE; b_range[k] = pfire[pl]; b_owner[k] = pl; b_pen[k] = ppen[pl];
+  b_rem[k] = prem[pl];
   cell[ci] |= HAS_BOMB;
   ++pactive[pl];
   sfx_place();
   mark(ci);
 }
 
+/* the remote: player p's bombs go off on the next fuse tick */
+static void set_off(u8 p) {
+  for (k = 0; k < MAX_BOMBS; ++k) if (b_used[k] && b_owner[k] == p && b_rem[k]) b_fuse[k] = 1;
+}
+
 static void update_bombs(void) {
   for (k = 0; k < MAX_BOMBS; ++k)
-    if (b_used[k] && --b_fuse[k] == 0) explode(k);
+    if (b_used[k] && (!b_rem[k] || b_fuse[k] == 1) && --b_fuse[k] == 0) explode(k);   /* remote: only when set off */
   for (c = 0; c < CELLS; ++c)
     if ((flame[c] & 0x7F) && (--flame[c] & 0x7F) == 0) {
       cell[c] &= ~RUBBLE;
@@ -789,6 +806,7 @@ static void collect(void) {
     return;
   }
   if (IS_PEN(ci)) ppen[pl] = 1;
+  else if (IS_REM(ci)) prem[pl] = 1;
   else if (t == IT_SHOE && pups[pl] < MAX_SPEEDUPS) { ++pups[pl]; pspeed[pl] += 4; }
   else if (t == IT_FIRE && pfire[pl] < 99) ++pfire[pl];
   else if (t == IT_BOMB && pbombs[pl] < 99) ++pbombs[pl];
@@ -802,7 +820,8 @@ static void update_player(void) {
   u8 s;
   if (!palive[pl]) { if (pdeath[pl]) --pdeath[pl]; return; }
   s = pl ? pad2_new : pad_new;
-  if (s & (BTN_A | BTN_B)) ppending[pl] = 1;
+  if (prem[pl] && (s & BTN_B)) set_off(pl);      /* the remote: B sets off their bombs, A drops them */
+  else if (s & (BTN_A | BTN_B)) ppending[pl] = 1;
   if (pbuft[pl]) --pbuft[pl];
   for (k = 0; k < 4; ++k) if (s & DBTN[k]) { pbuf[pl] = k; pbuft[pl] = 14; }
   if (pmoving[pl]) steer();
@@ -827,6 +846,10 @@ static void update_player(void) {
 static void kill_player(u8 p) {
   if (debug && nplayers == 1) return;            /* debug mode: immortal */
   palive[p] = 0; pdeath[p] = 60; ppen[p] = 0; sfx_die();
+  if (prem[p]) {                                  /* the remote is lost: its bombs tick again */
+    prem[p] = 0;
+    for (k = 0; k < MAX_BOMBS; ++k) if (b_used[k] && b_owner[k] == p && b_rem[k]) { b_rem[k] = 0; mark(b_cell[k]); }
+  }
 }
 
 /* ---------- the boss ----------
@@ -1066,7 +1089,7 @@ static void reset_player(u8 p, u8 cx, u8 cy, u8 keep) {
   pcx[p] = cx; pcy[p] = cy; px[p] = cx * 16; py[p] = cy * 16;
   pmoving[p] = 0; pdir[p] = 3; pframe[p] = 0; panim[p] = 0; pfrac[p] = 0;
   palive[p] = 1; pdeath[p] = 0; pactive[p] = 0; ppending[p] = 0; pburned[p] = 0;
-  if (!keep) { pspeed[p] = 16; pups[p] = 0; pfire[p] = 1; pbombs[p] = 1; ppen[p] = 0; }
+  if (!keep) { pspeed[p] = 16; pups[p] = 0; pfire[p] = 1; pbombs[p] = 1; ppen[p] = 0; prem[p] = 0; }
 }
 
 static void start_level(u8 keep) {
@@ -1176,12 +1199,12 @@ static u8 play_level(void) {
 
     /* fire and monster contact */
     for (pl = 0; pl < nplayers; ++pl)
-      if (palive[pl] && FLAME(((py[pl] + 8) >> 4) * GW + ((px[pl] + 8) >> 4))) { pburned[pl] = 1; kill_player(pl); }
+      if (palive[pl] && HOT(((py[pl] + 8) >> 4) * GW + ((px[pl] + 8) >> 4))) { pburned[pl] = 1; kill_player(pl); }
     k = ((py[1] + 8) >> 4) * GW + ((px[1] + 8) >> 4);
-    if (boss && palive[1] && !binv && FLAME(k) && !BOSS_FIRE(k)) hit_boss();   /* its own fire can't hurt it */
+    if (boss && palive[1] && !binv && HOT(k) && !BOSS_FIRE(k)) hit_boss();   /* its own fire can't hurt it */
     for (m = 0; m < NMON; ++m) {
       if (!malive[m]) continue;
-      if (FLAME(((my[m] + 8) >> 4) * GW + ((mx[m] + 8) >> 4))) {
+      if (HOT(((my[m] + 8) >> 4) * GW + ((mx[m] + 8) >> 4))) {
         malive[m] = 0; mdeath[m] = 40; sfx_pickup(); hud_krax(); continue;
       }
       for (pl = 0; pl < nplayers; ++pl) {

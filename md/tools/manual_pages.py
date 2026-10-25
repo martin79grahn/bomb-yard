@@ -174,12 +174,12 @@ def control(key, what):
 page11 = HEAD.format(title="Mega Drive controls and the bosses", heading="MD CONTROLS", tag="3-BUTTON PAD") + f"""
   <div style="flex: 1; padding: 14px 28px 0; display: flex; flex-direction: column; gap: 10px">
     <div style="display: flex; flex-direction: column">
-{control("D-PAD", "Walk. Title: 1 player, 2 players or boss rush")}{control("A B C", "Drop a bomb (any of the three)")}{control("START", "Start, pause and play on")}{control("B", "Options screen: go back")}{control("C", "Title screen: debug mode, walk through walls, can't die")}    </div>
+{control("D-PAD", "Walk. Title: 1 player, 2 players or boss rush")}{control("A B C", "Drop a bomb (any of the three). With the remote, B sets your bombs off")}{control("START", "Start, pause and play on")}{control("B", "Options screen: go back")}{control("C", "Title screen: debug mode, walk through walls, can't die")}    </div>
 
     <p style="margin: 0; font-size: 13px; line-height: 1.4">On the options screen, pick your bomber: Bit, Ruby, Sky or Nova, each in their own colours. With 1 player or boss rush there is also DEBUG: walk through walls and never die.</p>
 
     <h3 style="{H3}">THE SCREEN</h3>
-    <p style="margin: 0; font-size: 13px; line-height: 1.4">Left panel: your bombs (an arrowed bomb once you hold the penetrator), blast range, skates and lives. Right panel: Krax left, the boss's hits to go, or player 2. Top: the level and the clock, which turns yellow in the last 20 seconds while the music speeds up.</p>
+    <p style="margin: 0; font-size: 13px; line-height: 1.4">Left panel: your bombs (an arrowed bomb once you hold the penetrator), blast range, skates, lives and, at the bottom, the remote while you hold it. Right panel: Krax left, the boss's hits to go, or player 2. Top: the level and the clock, which turns yellow in the last 20 seconds while the music speeds up.</p>
 
     <h3 style="{H3}">THE BOSSES</h3>
     <div style="display: flex; gap: 6px; align-items: flex-end">

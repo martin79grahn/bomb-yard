@@ -299,6 +299,31 @@ add_cell(bomb_pic(0, True), False)
 add_cell(bomb_pic(1, True), False)
 
 
+def remote_bomb_pic(lamp):
+    """A remote bomb: no fuse but an antenna with a lamp that blinks, and a green band."""
+    p = Pic(16, 16)
+    fill_sphere(p, 7.5, 9.3, 6.2, (2, 3, 4), spec=5)
+    for x in range(6, 10):
+        for y in range(2, 4):
+            p.set(x, y, 3)
+    for y in (10, 11):                          # the band round its middle
+        for x in range(16):
+            if p.p[y][x]:
+                p.set(x, y, 15)
+    p.set(7, 10, 5); p.set(8, 10, 5)            # its little window
+    p.set(8, 1, 4)                              # the antenna
+    for x, y in ((8, 0), (7, 0), (9, 0)):
+        p.set(x, y, 8 if lamp else 7)
+    if lamp:
+        p.set(8, 0, 11)
+    p.outline()
+    return p
+
+
+consts["T_RBOMB"] = add_cell(remote_bomb_pic(1), False)[0]
+add_cell(remote_bomb_pic(0), False)
+
+
 # ---------------------------------------------------------------- flames (PAL1, plane A)
 def flame_pic(sides, size, phase):
     """A blast piece joined to the flames on the given sides (bit 0 left, 1 right, 2 up, 3 down),
@@ -429,11 +454,26 @@ def item_pen():
     return p
 
 
+def item_remote():
+    """The remote: a bomb with an antenna sending radio waves."""
+    p = bubble()
+    fill_sphere(p, 7.5, 10.0, 3.6, (1, 2, 3), cuts=(0.3, 0.75))
+    p.set(6, 8, 5)
+    for y in range(3, 7):                        # the antenna
+        p.set(7, y, 5)
+    p.set(7, 2, 8); p.set(6, 2, 8); p.set(8, 2, 8)
+    for x, y in ((10, 1), (11, 2), (11, 3), (10, 4), (12, 0), (13, 1), (13, 2), (13, 3), (12, 4)):   # waves
+        p.set(x, y, 11); p.set(14 - x, y, 11)
+    p.outline()
+    return p
+
+
 consts["T_ITEM_SHOE"] = add_cell(item_skate(), False)[0]
 consts["T_ITEM_FIRE"] = add_cell(item_fire(), False)[0]
 consts["T_ITEM_BOMB"] = add_cell(item_bomb(), False)[0]
 consts["T_ITEM_LIFE"] = add_cell(heart_pic(), False)[0]
 consts["T_ITEM_PEN"] = add_cell(item_pen(), False)[0]
+consts["T_ITEM_REM"] = add_cell(item_remote(), False)[0]
 
 
 # ---------------------------------------------------------------- font and boxes (PAL0)

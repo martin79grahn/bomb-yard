@@ -8,17 +8,19 @@ Allt från NES-versionen finns med:
 
 - **1 spelare:** sex banor (The Yard, Sand Pit, Frost Cave, Lava Peak, Cloud Nine och Deep Sea) med två Kraxar på varje (clownfiskar i Deep Sea), och en bossbana efter varje bana. Du väljer 3, 5 eller 10 liv innan spelet, och vilken figur du spelar som: Bit, Ruby, Sky eller Nova, med var sina färger. Bossen har färgerna från banan före och blir svårare för varje bana: från 3 träffar, 2 bomber och räckvidd 5 till hajen i Deep Sea med 7 träffar, 4 bomber och räckvidd 7. Halvvägs blir den arg, rödare och snabbare, med en bomb till. Den skadas inte av sina egna bomber, bara av dina.
 - **Penetratorbomb:** 2 per bana. Med den spränger dina bomber igenom stenblocken. Ikonen för bomber i vänsterpanelen byts mot en bomb med pil så länge du har den, och den försvinner när du dör.
+- **Remote:** 2 per bana. Med den smäller dina bomber inte av sig själva utan när du trycker B, och då smäller alla på en gång. A och C lägger bomber. Remotebomberna har en antenn med blinkande lampa och ett grönt band. Andra explosioner sätter igång dem som vanligt. En remote-ikon syns längst ner i panelen så länge du har den, och den försvinner när du dör. Bomberna du redan lagt börjar då ticka.
+- Explosionerna slocknar efter ungefär en halv sekund, och elden där ett stenblock just sprängts är ofarlig att gå in i.
 - **2 spelare:** välj bana, om Kraxar ska vara med och hur många vunna rundor som krävs (3, 5 eller 10) och vilken figur var och en har. Två spelare kan inte välja samma. Spelare 2 använder handkontroll 2.
 - Under stenarna på varje bana göms bomb-power-ups, eld-power-ups, skor och, med 1 spelare, 1 hjärta som ger ett extra liv. Raden ITEMS på inställningsskärmen väljer hur många av varje sort (1–7, normalt 5); hjärtat är alltid ett. Bomber och eld har ingen övre gräns.
 - Styrhjälpen från NES-versionen: ett tryck strax före en korsning sparas, ett tryck upp till 5 pixlar för sent svänger ändå, och motsatt riktning vänder direkt.
-- Tre minuter per bana. De sista 20 sekunderna går musiken fortare och en klocka tickar.
+- Två minuter per bana. De sista 20 sekunderna går musiken fortare och en klocka tickar.
 
 ## Knappar
 
 | Knapp | Gör |
 | --- | --- |
 | Styrkorset | Gå. I menyerna: välj |
-| A, B eller C | Lägg bomb |
+| A, B eller C | Lägg bomb. Med remote: A eller C lägger bomb, B spränger dina bomber |
 | Start | Börja, pausa och fortsätt |
 | B (i inställningarna) | Tillbaka |
 | Upp/ner (på titelskärmen) | 1 PLAYER, 2 PLAYERS eller BOSS RUSH (bara bossarna, en efter en) |

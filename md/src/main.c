@@ -25,20 +25,22 @@
 #define STONE  2
 #define TUFT   0x80           /* with a shoe item: the extra life */
 #define HAS_BOMB 0x10
-#define RUBBLE   0x20         /* a stone that was just blasted: while it burns it still stops other blasts */
+#define RUBBLE   0x20         /* a stone that was just blasted: while it burns it still stops other blasts,
+                                 but it can't hurt */
 
 #define IT_SHOE 1
 #define IT_FIRE 2
 #define IT_BOMB 3
 
 #define FUSE        180
-#define FLAME_TIME  60
-#define FLAME_LOW   20        /* the blast thins out for its last frames */
+#define FLAME_TIME  32
+#define FLAME_LOW   12        /* the blast thins out for its last frames */
 #define MAX_BOMBS   40
 #define MAX_SPEEDUPS 4
 #define POOL_LIFE   1           /* 1 player only; bombs, fire and shoes: opt_items each */
 #define POOL_PEN    2           /* penetrator bombs */
-#define ROUND_SECS  180
+#define POOL_REM    2           /* remote controls */
+#define ROUND_SECS  120         /* two minutes per level */
 #define STRESS_SECS 20
 
 #define TYPE(ci)        (cell[ci] & 3)
@@ -47,9 +49,12 @@
 /* the penetrator bomb: a bomb item with its own bit */
 #define PEN             0x40
 #define IS_PEN(ci)      (ITEM(ci) == IT_BOMB && (cell[ci] & PEN))
+/* the remote control: a fire item with the same bit */
+#define IS_REM(ci)      (ITEM(ci) == IT_FIRE && (cell[ci] & PEN))
 #define SET_ITEM(ci, v) (cell[ci] = (cell[ci] & ~(0x0C | PEN)) | ((v) << 2))
 #define BOMB(ci)        (cell[ci] & HAS_BOMB)
 #define FLAME(ci)       (flame[ci])
+#define HOT(ci)         (FLAME(ci) && !(cell[ci] & RUBBLE))   /* fire that kills */
 
 static u8 cell[CELLS];
 static u8 flame[CELLS];
@@ -57,6 +62,7 @@ static u8 bfire[CELLS];       /* burning only with the boss's own fire, which ca
 static u8 fowner;             /* whose bomb the flames being added come from */
 
 static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_BOMBS], b_owner[MAX_BOMBS], b_pen[MAX_BOMBS];
+static u8 b_rem[MAX_BOMBS];   /* a remote bomb: no fuse, its owner sets it off */
 
 /* buttons, as the NES code had them */
 #define K_UP    BUTTON_UP
@@ -64,6 +70,7 @@ static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_B
 #define K_LEFT  BUTTON_LEFT
 #define K_RIGHT BUTTON_RIGHT
 #define K_BOMB  (BUTTON_A | BUTTON_B | BUTTON_C)
+#define K_REMOTE BUTTON_B      /* with the remote: B sets the bombs off, A and C drop them */
 #define K_START BUTTON_START
 
 /* players: index 0 is pad 1, index 1 is pad 2 (2 players) or the boss */
@@ -71,6 +78,7 @@ static u8 b_cell[MAX_BOMBS], b_fuse[MAX_BOMBS], b_range[MAX_BOMBS], b_used[MAX_B
 static u8 px[NPL], py[NPL], pcx[NPL], pcy[NPL], pmoving[NPL], pdir[NPL], pleft[NPL], pfrac[NPL];
 static u8 pspeed[NPL], pups[NPL], pfire[NPL], pbombs[NPL], pactive[NPL];
 static u8 ppen[NPL];            /* has the penetrator: blasts go through stone. Lost on dying */
+static u8 prem[NPL];            /* has the remote: B sets off their bombs. Lost on dying */
 static s8 pdx[NPL], pdy[NPL];
 static u8 pbuf[NPL], pbuft[NPL];
 static u8 palive[NPL], pdeath[NPL], panim[NPL], pframe[NPL], ppending[NPL], pburned[NPL];
@@ -225,10 +233,10 @@ static void draw_ground(u8 ci) {
     VDP_setTileMapXY(BG_B, TILE_ATTR_FULL(PAL0, 0, 0, 0, TB + f[3]), x + 1, y + 1);
 }
 
-static u8 bomb_fuse_at(u8 ci) {
+static u8 bomb_at(u8 ci) {
     u8 b;
-    for (b = 0; b < MAX_BOMBS; ++b) if (b_used[b] && b_cell[b] == ci) return b_fuse[b];
-    return FUSE;
+    for (b = 0; b < MAX_BOMBS; ++b) if (b_used[b] && b_cell[b] == ci) return b;
+    return 0;
 }
 
 /* plane A: a flame piece, a bomb, a power-up or nothing */
@@ -239,14 +247,19 @@ static void draw_obj(u8 ci) {
         sides = (FLAME(ci - 1) ? 1 : 0) | (FLAME(ci + 1) ? 2 : 0) | (FLAME(ci - GW) ? 4 : 0) | (FLAME(ci + GW) ? 8 : 0);
         t = T_FLAME + (((FLAME(ci) < FLAME_LOW ? 2 : 0) + flame_phase) * 16 + sides) * 4;
     } else if (BOMB(ci)) {
-        fz = bomb_fuse_at(ci);
-        t = T_BOMB + (((frame_count >> 3) & 1) + (fz < 60 && ((fz / 5) & 1) ? 2 : 0)) * 4;
+        fz = bomb_at(ci);
+        if (b_rem[fz]) t = T_RBOMB + ((frame_count >> 5) & 1) * 4;   /* its lamp blinks */
+        else {
+            fz = b_fuse[fz];
+            t = T_BOMB + (((frame_count >> 3) & 1) + (fz < 60 && ((fz / 5) & 1) ? 2 : 0)) * 4;
+        }
     } else if (TYPE(ci) != FLOOR || !ITEM(ci)) {
         VDP_setTileMapXY(BG_A, 0, x, y); VDP_setTileMapXY(BG_A, 0, x + 1, y);
         VDP_setTileMapXY(BG_A, 0, x, y + 1); VDP_setTileMapXY(BG_A, 0, x + 1, y + 1);
         return;
     } else if (IS_LIFE(ci)) t = T_ITEM_LIFE;
     else if (IS_PEN(ci)) t = T_ITEM_PEN;
+    else if (IS_REM(ci)) t = T_ITEM_REM;
     else if (ITEM(ci) == IT_SHOE) t = T_ITEM_SHOE;
     else if (ITEM(ci) == IT_FIRE) t = T_ITEM_FIRE;
     else t = T_ITEM_BOMB;
@@ -291,6 +304,7 @@ static void build_map(void) {
     for (k = 0; k < MAX_BOMBS; ++k) b_used[k] = 0;
     if (nplayers == 1) hide_items(IT_SHOE | 0x20, POOL_LIFE);
     hide_items(IT_BOMB | PEN, POOL_PEN);
+    hide_items(IT_FIRE | PEN, POOL_REM);
     hide_items(IT_BOMB, opt_items);
     hide_items(IT_FIRE, opt_items);
     hide_items(IT_SHOE, opt_items);
@@ -334,6 +348,9 @@ static void hud_stats(u8 p) {
     hud_num(x, 7, pbombs[p]);
     hud_num(x, 11, pfire[p]);
     hud_num(x, 15, pups[p]);
+    if (prem[p]) item_icon(x + 1, 25, T_ITEM_REM);   /* the remote, while you hold it */
+    else { VDP_setTileMapXY(BG_B, 0, x + 1, 25); VDP_setTileMapXY(BG_B, 0, x + 2, 25);
+           VDP_setTileMapXY(BG_B, 0, x + 1, 26); VDP_setTileMapXY(BG_B, 0, x + 2, 26); }
 }
 static void hud_lives(void) { hud_num(0, 19, lives); }
 static void hud_krax(void) { hud_num(36, 7, (malive[0] ? 1 : 0) + (malive[1] ? 1 : 0)); }
@@ -413,12 +430,6 @@ static void add_flame(u8 ci) {
     redraw_around(ci);
 }
 
-static u8 bomb_at(u8 ci) {
-    u8 b;
-    for (b = 0; b < MAX_BOMBS; ++b) if (b_used[b] && b_cell[b] == ci) return b;
-    return 0;
-}
-
 static u8 bpen;                  /* the bomb going off is a penetrator */
 static void blast_line(u8 start, u8 range, u8 d) {
     u8 ci = start, n, t;
@@ -459,11 +470,17 @@ static void place_bomb(void) {
     if (!palive[pl] || pactive[pl] >= pbombs[pl] || BOMB(ci)) return;
     for (k = 0; k < MAX_BOMBS; ++k) if (!b_used[k]) break;
     if (k == MAX_BOMBS) return;
-    b_used[k] = 1; b_cell[k] = ci; b_fuse[k] = FUSE; b_range[k] = pfire[pl]; b_owner[k] = pl; b_pen[k] = ppen[pl];
+    b_used[k] = 1; b_cell[k] = ci; b_fuse[k] = FUSE; b_range[k] = pfire[pl]; b_owner[k] = pl; b_pen[k] = ppen[pl]; b_rem[k] = prem[pl];
     cell[ci] |= HAS_BOMB;
     ++pactive[pl];
     sfx_place();
     draw_obj(ci);
+}
+
+/* the remote: player p's bombs go off on the next fuse tick */
+static void set_off(u8 p) {
+    u8 k;
+    for (k = 0; k < MAX_BOMBS; ++k) if (b_used[k] && b_owner[k] == p && b_rem[k]) b_fuse[k] = 1;
 }
 
 static void update_bombs(void) {
@@ -472,7 +489,7 @@ static void update_bombs(void) {
     if (flick) flame_phase ^= 1;
     for (k = 0; k < MAX_BOMBS; ++k)
         if (b_used[k]) {
-            if (--b_fuse[k] == 0) explode(k);
+            if ((!b_rem[k] || b_fuse[k] == 1) && --b_fuse[k] == 0) explode(k);   /* remote: only when set off */
             else if ((frame_count & 7) == 0 || (b_fuse[k] < 60 && b_fuse[k] % 5 == 0)) draw_obj(b_cell[k]);
         }
     for (c = 0; c < CELLS; ++c)
@@ -533,6 +550,7 @@ static void collect(void) {
         return;
     }
     if (IS_PEN(ci)) ppen[pl] = 1;
+    else if (IS_REM(ci)) prem[pl] = 1;
     else if (t == IT_SHOE && pups[pl] < MAX_SPEEDUPS) { ++pups[pl]; pspeed[pl] += 4; }
     else if (t == IT_FIRE && pfire[pl] < 99) ++pfire[pl];
     else if (t == IT_BOMB && pbombs[pl] < 99) ++pbombs[pl];
@@ -547,7 +565,8 @@ static void update_player(void) {
     u16 n;
     if (!palive[pl]) { if (pdeath[pl]) --pdeath[pl]; return; }
     n = pl ? pad2_new : pad_new;
-    if (n & K_BOMB) ppending[pl] = 1;
+    if (prem[pl] && (n & K_REMOTE)) set_off(pl);
+    else if (n & K_BOMB) ppending[pl] = 1;
     if (pbuft[pl]) --pbuft[pl];
     for (k = 0; k < 4; ++k) if (n & DBTN[k]) { pbuf[pl] = k; pbuft[pl] = 14; }
     if (pmoving[pl]) steer();
@@ -572,6 +591,11 @@ static void update_player(void) {
 static void kill_player(u8 p) {
     if (debug && nplayers == 1) return;         /* debug mode: immortal */
     palive[p] = 0; pdeath[p] = 60; ppen[p] = 0; sfx_die();
+    if (prem[p]) {                              /* the remote is lost: its bombs tick again */
+        u8 k;
+        prem[p] = 0;
+        for (k = 0; k < MAX_BOMBS; ++k) if (b_used[k] && b_owner[k] == p && b_rem[k]) { b_rem[k] = 0; draw_obj(b_cell[k]); }
+    }
 }
 
 /* ---------- the boss ---------- */
@@ -794,7 +818,7 @@ static void reset_player(u8 p, u8 cx, u8 cy, u8 keep) {
     pcx[p] = cx; pcy[p] = cy; px[p] = cx * 16; py[p] = cy * 16;
     pmoving[p] = 0; pdir[p] = 3; pframe[p] = 0; panim[p] = 0; pfrac[p] = 0; pbuft[p] = 0;
     palive[p] = 1; pdeath[p] = 0; pactive[p] = 0; ppending[p] = 0; pburned[p] = 0;
-    if (!keep) { pspeed[p] = 16; pups[p] = 0; pfire[p] = 1; pbombs[p] = 1; ppen[p] = 0; }
+    if (!keep) { pspeed[p] = 16; pups[p] = 0; pfire[p] = 1; pbombs[p] = 1; ppen[p] = 0; prem[p] = 0; }
 }
 
 static const u8* level_song(void) {
@@ -862,12 +886,12 @@ static u8 play_level(void) {
         update_bombs();
 
         for (pl = 0; pl < nplayers; ++pl)
-            if (palive[pl] && FLAME(((py[pl] + 8) >> 4) * GW + ((px[pl] + 8) >> 4))) { pburned[pl] = 1; kill_player(pl); }
+            if (palive[pl] && HOT(((py[pl] + 8) >> 4) * GW + ((px[pl] + 8) >> 4))) { pburned[pl] = 1; kill_player(pl); }
         kx = ((py[1] + 8) >> 4) * GW + ((px[1] + 8) >> 4);
-        if (boss && palive[1] && !binv && FLAME(kx) && !bfire[kx]) hit_boss();   /* its own fire can't hurt it */
+        if (boss && palive[1] && !binv && HOT(kx) && !bfire[kx]) hit_boss();   /* its own fire can't hurt it */
         for (m = 0; m < NMON; ++m) {
             if (!malive[m]) continue;
-            if (FLAME(((my[m] + 8) >> 4) * GW + ((mx[m] + 8) >> 4))) {
+            if (HOT(((my[m] + 8) >> 4) * GW + ((mx[m] + 8) >> 4))) {
                 malive[m] = 0; mdeath[m] = 40; sfx_pickup(); if (nplayers == 1) hud_krax(); continue;
             }
             for (pl = 0; pl < nplayers; ++pl) {

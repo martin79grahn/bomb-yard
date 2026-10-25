@@ -10,6 +10,8 @@ Pattern table 0 ($0000) holds background tiles:
            centre $80, across $82, up-down $84, ends rounded to the left $86, right $88,
            up $8A, down $8C, and a lone ball $8E
   $A0,$A1,$B0,$B1  the penetrator bomb power-up: a bomb pierced by an arrow (item palette)
+  $A2,$A3,$B2,$B3  the remote power-up: a bomb with an antenna sending radio waves
+  $A4,$A5,$B4,$B5  a remote bomb: an antenna with a lamp instead of a fuse, and a band round it
 Pattern table 1 ($1000) holds sprites:
   $00-$2F  the bomber frames (sheet rows 0-2)
   $30,$31  confetti specks
@@ -177,6 +179,35 @@ pen = penetrator_pixels()
 for i, t in enumerate((0xA0, 0xA1, 0xB0, 0xB1)):
     ox, oy = (i & 1) * 8, (i >> 1) * 8
     bg[t] = encode([row[ox:ox + 8] for row in pen[oy:oy + 8]])
+
+# the remote: the bomb's body with an antenna; the power-up sends waves, a laid bomb wears a band
+def remote_pixels(item):
+    px = [[0] * 16 for _ in range(16)]
+    for y in range(16):
+        for x in range(16):
+            if (x - 7.0) ** 2 + (y - 9.5) ** 2 <= 5.4 ** 2:
+                px[y][x] = 1
+    for x, y in ((5, 6), (4, 7), (5, 7), (4, 8)):    # shine
+        px[y][x] = 2
+    for y in range(1, 5):                            # the antenna
+        px[y][7] = 2
+    px[0][7] = 3; px[1][6] = 3; px[1][8] = 3; px[0][6] = 3; px[0][8] = 3   # its lamp
+    if item:                                         # radio waves both ways
+        for x, y in ((10, 0), (11, 1), (10, 2), (12, 0), (13, 1), (13, 2), (12, 3)):
+            px[y][x] = 3; px[y][14 - x] = 3
+    else:
+        for x in range(2, 13):                       # the band
+            if px[10][x]:
+                px[10][x] = 3; px[11][x] = 3
+        px[10][7] = 2; px[11][7] = 2                 # its little window
+    return px
+
+
+for base, item in ((0xA2, True), (0xA4, False)):
+    rp = remote_pixels(item)
+    for i, t in enumerate((base, base + 1, base + 16, base + 17)):
+        ox, oy = (i & 1) * 8, (i >> 1) * 8
+        bg[t] = encode([row[ox:ox + 8] for row in rp[oy:oy + 8]])
 
 # explosion pieces: a beam with a red edge, orange body and yellow core, rounded at the ends
 def flame_piece(left, right, up, down):
