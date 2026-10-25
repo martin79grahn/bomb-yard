@@ -21,7 +21,8 @@ Allt från NES-versionen finns med:
 | A, B eller C | Lägg bomb |
 | Start | Börja, pausa och fortsätt |
 | B (i inställningarna) | Tillbaka |
-| C (på titelskärmen) | Debugläge, där du går genom väggar (1 spelare) |
+| Upp/ner (på titelskärmen) | 1 PLAYER, 2 PLAYERS eller BOSS RUSH (bara bossarna, en efter en) |
+| C (på titelskärmen) | Debugläge, där du går genom väggar och inte kan dö (1 spelare) |
 
 ## Grafik och ljud
 

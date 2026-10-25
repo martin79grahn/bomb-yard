@@ -102,7 +102,8 @@ static s8 mdx[NMON], mdy[NMON];
 static u8 malive[NMON], mdeath[NMON], mwait[NMON], mbob[NMON];
 static u8 mspeed;
 
-static u8 level, debug, secs, subsec, time_up;
+static u8 level, debug, secs, subsec, time_up;   /* debug: walk through walls and never die */
+static u8 rush;                 /* boss rush: only the five bosses, one after another (1 player) */
 static u16 pad, pad_old, pad_new, pad2, pad2_old, pad2_new;
 static u8 rng = 0x5A, rng2 = 0xC3;
 static u16 frame_count;
@@ -563,7 +564,10 @@ static void update_player(void) {
     }
 }
 
-static void kill_player(u8 p) { palive[p] = 0; pdeath[p] = 60; ppen[p] = 0; sfx_die(); }
+static void kill_player(u8 p) {
+    if (debug && nplayers == 1) return;         /* debug mode: immortal */
+    palive[p] = 0; pdeath[p] = 60; ppen[p] = 0; sfx_die();
+}
 
 /* ---------- the boss ---------- */
 static u8 reaches(u8 b, u8 r, u8 ci) {
@@ -860,7 +864,7 @@ static u8 play_level(void) {
 #ifdef TEST_CLEAR
         if (secs == ROUND_SECS - 2) { malive[0] = malive[1] = 0; }
 #endif
-        if ((palive[0] || palive[1]) && --subsec == 0) {
+        if ((palive[0] || palive[1]) && secs && --subsec == 0) {   /* stops at zero (debug mode lives on) */
             subsec = 60;
             if (--secs == 0) {
                 time_up = 1;
@@ -888,10 +892,11 @@ static const char* death_reason(void) {
 
 static void solo_game(void) {
     char next[20];
-    level = 0; boss = 0;
+    level = 0; boss = rush;                     /* boss rush starts straight at the first boss */
     lives = WIN_CHOICES[opt_lives];
     start_level(0);
-    message("LEVEL 1", LEVEL_NAME[0], "GET READY!", 100);
+    if (rush) message("BOSS RUSH", BOSS_TAKES[0], "GET READY!", 100);
+    else message("LEVEL 1", LEVEL_NAME[0], "GET READY!", 100);
     for (;;) {
         if (play_level() == R_CLEARED) {
             hide_sprites();
@@ -907,8 +912,8 @@ static void solo_game(void) {
                 message("LEVEL CLEARED", "NEXT UP", "THE BOSS", 150);
                 boss = 1;
             } else {
-                message("BOSS DEFEATED", "NEXT UP", LEVEL_NAME[level + 1], 150);
-                boss = 0;
+                message("BOSS DEFEATED", rush ? "NEXT BOSS" : "NEXT UP", LEVEL_NAME[level + 1], 150);
+                boss = rush;
                 ++level;
             }
             start_level(1);
@@ -1013,9 +1018,10 @@ static void draw_logo(void) {
 }
 
 static void title_choice(void) {
-    text(BG_A, 14, 13, nplayers == 1 ? ">" : " ", 1);
+    text(BG_A, 14, 13, nplayers == 1 && !rush ? ">" : " ", 1);
     text(BG_A, 14, 15, nplayers == 2 ? ">" : " ", 1);
-    text(BG_A, 10, 18, nplayers == 1 ? "5 LEVELS AND 5 BOSSES"     : "  BLAST YOUR FRIEND!      ", 0);
+    text(BG_A, 14, 17, rush ? ">" : " ", 1);
+    text(BG_A, 10, 19, rush ? " BEAT ALL FIVE BOSSES" : nplayers == 1 ? "5 LEVELS AND 5 BOSSES" : " BLAST YOUR FRIEND!  ", 0);
 }
 
 static void title_screen(void) {
@@ -1026,6 +1032,7 @@ static void title_screen(void) {
     box(8, 11, 24, 13);
     text(BG_A, 16, 13, "1 PLAYER", 0);
     text(BG_A, 16, 15, "2 PLAYERS", 0);
+    text(BG_A, 16, 17, "BOSS RUSH", 0);
     text(BG_A, 13, 21, "PRESS START", 1);
     text(BG_A, 2, 26, "C: DEBUG MODE", 0);
     text(BG_A, 25, 26, "MGRAHN 2026", 0);
@@ -1043,7 +1050,12 @@ static void title_screen(void) {
         spr(kx - 4, 192, SPRITE_SIZE(2, 2), TILE_ATTR_FULL(PAL2, 0, 0, 1, TB + S_KRAX + (1 + ((walk >> 3) & 1)) * 4));
         spr_end();
         if (pad_new & K_START) { sfx_select(); return; }
-        if (pad_new & (K_UP | K_DOWN)) { nplayers = 3 - nplayers; title_choice(); sfx_menu(); }
+        if (pad_new & (K_UP | K_DOWN)) {         /* 1 player, 2 players, boss rush */
+            u8 t = rush ? 2 : nplayers - 1;
+            t = (pad_new & K_DOWN) ? (t == 2 ? 0 : t + 1) : (t ? t - 1 : 2);
+            rush = t == 2; nplayers = t == 1 ? 2 : 1;
+            title_choice(); sfx_menu();
+        }
         if (pad_new & BUTTON_C) { debug ^= 1; text(BG_A, 16, 22, debug ? "DEBUG ON" : "        ", 0); sfx_menu(); }
     }
 }
@@ -1097,7 +1109,7 @@ static u8 options_screen(void) {
     u8 rows = nplayers == 1 ? 3 : 6, t;
     clear_plane_a();
     box(6, 5, 28, 20);
-    text_c(BG_A, 7, nplayers == 1 ? "1 PLAYER OPTIONS" : "2 PLAYER OPTIONS", 1);
+    text_c(BG_A, 7, rush ? "BOSS RUSH OPTIONS" : nplayers == 1 ? "1 PLAYER OPTIONS" : "2 PLAYER OPTIONS", 1);
     if (nplayers == 1) { text(BG_A, 12, 12, "LIVES", 0); text(BG_A, 12, 14, "ITEMS", 0); text(BG_A, 12, 16, "PLAYER", 0); }
     else {
         text(BG_A, 12, 9, "LEVEL", 0);

@@ -5,6 +5,8 @@ En NES-version av Bomb Yard med två lägen:
 - **1 spelare:** du är Bit och ska spränga de två Kraxarna i fem levels: The Yard, Sand Pit, Frost Cave, Lava Peak och Cloud Nine. Varje level har tre minuter på klockan. Innan spelet väljer du hur många liv du har, 3, 5 eller 10, och vilken figur du vill spela som: Bit (vit), Ruby (röd), Sky (blå) eller Nova (gul). Varje gång du dör förlorar du ett liv och försöker banan igen, och när liven är slut är det game over.
 
   Efter varje level kommer en **bossbana**. Bossen slåss på samma bana som du just klarat och har dess stil: grön i The Yard, blå och guld i Sand Pit, isblå i Frost Cave, glödande röd på Lava Peak och guld på Cloud Nine. Varje boss är svårare än den förra: den första tål 3 träffar, lägger 2 bomber åt gången med sprängräckvidd 5, och den sista tål 6 träffar, lägger 3 bomber med räckvidd 7 och är snabbare och tänker kortare mellan bomberna. Halvvägs blir bossen arg: rödare, snabbare och med en bomb till. När den sista bossen är besegrad har du vunnit. Den blinkar en stund efter varje träff och kan inte skadas då. Att nudda bossen är ofarligt, det är bomberna du ska akta dig för. Bossen skadas inte av sina egna bomber, bara av dina.
+- **Boss rush:** bara de fem bossarna, en efter en, utan Kraxbanorna. Du väljer liv, antal power-ups och figur som i 1-spelarläget, och dina power-ups följer med från boss till boss. Klarar du alla fem har du vunnit. På webben är det knappen **Boss rush** i menyn.
+- **Debugläge:** du går genom väggar och kan inte dö, varken av eld, Kraxar eller när tiden tar slut (klockan stannar på noll).
 - **2 spelare:** spräng varandra på en slumpad bana. Spelare 2 (röd) använder handkontroll 2. Tar tiden slut blir rundan oavgjord. Innan matchen väljer du på en inställningsskärm:
   - **Level:** The Yard, Sand Pit, Frost Cave, Lava Peak eller Cloud Nine.
   - **Monsters:** på eller av. När de är på går två Kraxar runt på banan, och den som nuddar en är ute.
@@ -29,7 +31,8 @@ Varje bana har egen musik: djungeltrummor med bongotrummor i The Yard, orientali
 | A eller B | Lägg bomb |
 | Upp/ner, vänster/höger (inställningar) | Välj rad och ändra värde. B går tillbaka |
 | Start | Börja, pausa och fortsätt (båda spelarna kan pausa) |
-| Select (på titelskärmen) | Slå på eller av debugläget, där du går genom väggar (bara 1 spelare) |
+| Upp/ner (på titelskärmen) | Välj 1 PLAYER, 2 PLAYERS eller BOSS RUSH |
+| Select (på titelskärmen) | Slå på eller av debugläget, där du går genom väggar och inte kan dö (bara 1 spelare) |
 
 Spelare 1 använder handkontroll 1 och har den vita dräkten. Spelare 2 använder handkontroll 2 och har den röda.
 

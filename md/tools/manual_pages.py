@@ -174,7 +174,7 @@ def control(key, what):
 page11 = HEAD.format(title="Mega Drive controls and the bosses", heading="MD CONTROLS", tag="3-BUTTON PAD") + f"""
   <div style="flex: 1; padding: 14px 28px 0; display: flex; flex-direction: column; gap: 10px">
     <div style="display: flex; flex-direction: column">
-{control("D-PAD", "Walk. In the menus: choose")}{control("A B C", "Drop a bomb (any of the three)")}{control("START", "Start, pause and play on")}{control("B", "Options screen: go back")}{control("C", "Title screen: debug mode, walk through walls")}    </div>
+{control("D-PAD", "Walk. Title: 1 player, 2 players or boss rush")}{control("A B C", "Drop a bomb (any of the three)")}{control("START", "Start, pause and play on")}{control("B", "Options screen: go back")}{control("C", "Title screen: debug mode, walk through walls, can't die")}    </div>
 
     <p style="margin: 0; font-size: 13px; line-height: 1.4">On the options screen, pick your bomber: Bit, Ruby, Sky or Nova, each in their own colours.</p>
 

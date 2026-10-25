@@ -91,6 +91,13 @@ button:focus-visible { outline: 3px solid var(--p2); outline-offset: 3px; }
 @media (pointer: coarse) { .pad { display: flex; } }
 
 @media (max-width: 760px) {
+  /* the menu packs tighter on a narrow screen so it fits over the arena */
+  .overlay { padding: 8px; overflow-y: auto; place-items: safe center; }
+  .overlay .box { gap: 9px; }
+  .overlay .big { font-size: 22px; }
+  .overlay .sub { font-size: 11px; line-height: 1.3; }
+  .overlay button { font-size: 11px; padding: 7px 9px; }
+  .modes, .styles { gap: 6px; }
   .stage { grid-template-columns: 1fr 1fr; }
   .screen { grid-column: 1 / -1; order: -1; }
   .keys { display: none; }
@@ -124,7 +131,7 @@ button:focus-visible { outline: 3px solid var(--p2); outline-offset: 3px; }
   .pad.p2 { order: 0; transform: rotate(180deg); }
   body.two header { display: none; }
   body.two .screen { width: min(100%, calc(100vh - 360px)); width: min(100%, calc(100svh - 360px)); }
-  /* the enhanced screen is wide and short on a phone, so the menu packs tighter */
+  /* the enhanced screen is wide and short on a phone, so the menu packs tighter still */
   body.enh .overlay { padding: 8px; }
   body.enh .overlay .box { gap: 7px; }
   body.enh .overlay .big { font-size: 18px; }
@@ -179,6 +186,7 @@ body:not(.two) .pad.p2 { display: none; }
           <div class="modes" id="ovModes">
             <button id="btnCpu" type="button">1P vs monsters</button>
             <button id="btn2p" type="button" class="alt">2 players</button>
+            <button id="btnRush" type="button" class="alt">Boss rush</button>
             <button id="btnDebug" type="button" class="dbg">Debug</button>
           </div>
         </div>
@@ -492,7 +500,9 @@ if (!Array.isArray(opts.chars) || opts.chars.length !== 2) opts.chars = [0, 1];
 function charOf(id){ return CHARS[opts.chars[id] % CHARS.length]; }
 let lives = 0;           // 1-player lives left
 let roundNo = 0;         // 2-player rounds played; the arena changes every round
-let debug = false;       // debug mode: player 1 walks through walls
+let debug = false;       // debug mode: player 1 walks through walls and can't die
+let rush = false;        // boss rush: only the five bosses, one after another (1 player)
+function immortal(p){ return debug && mode === "cpu" && p.id === 0 && !p.boss; }
 let carry = null;        // player 1's power-ups, kept from level to level
 let phase = "menu";      // menu | play | roundover | matchover | paused
 // "classic": the cart's pixel look and chiptunes. "enhanced": tilted 3D view, new monsters, modern music
@@ -764,20 +774,20 @@ function tick(){
   for (const p of G.players) {
     if (!p.alive) continue;
     if (p.boss) { const f = flameAt(Math.round(p.x/16), Math.round(p.y/16)); if (!p.inv && f && !f.bossOnly) hitBoss(p); continue; }   // its own fire can't hurt it
-    if (flameAt(Math.round(p.x/16), Math.round(p.y/16))) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, charOf(p.id).suit.glow); }
+    if (!immortal(p) && flameAt(Math.round(p.x/16), Math.round(p.y/16))) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, charOf(p.id).suit.glow); }
   }
   for (const m of G.monsters) {
     if (!m.alive) continue;
     if (flameAt(Math.round(m.x/16), Math.round(m.y/16))) { m.alive = false; m.deathT = 40; SFX.pickup(); fxPop(m.x, m.y, "#ffffff"); renderHud(); continue; }
     for (const p of G.players)
-      if (p.alive && Math.abs(p.x - m.x) < 11 && Math.abs(p.y - m.y) < 11) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, charOf(p.id).suit.glow); }
+      if (p.alive && !immortal(p) && Math.abs(p.x - m.x) < 11 && Math.abs(p.y - m.y) < 11) { p.alive = false; p.deathT = 60; SFX.die(); fxPop(p.x, p.y, charOf(p.id).suit.glow); }
   }
   for (const pk of G.pickups) pk.fresh = false;
 
   // the clock: when it hits zero the arena is lost. 1-player dies, 2-player is a draw
   if (phase === "play" && G.time > 0 && --G.time === 0) {
     G.timeUp = true; SFX.die();
-    for (const p of G.players) if (p.alive && !p.boss) { p.alive = false; p.deathT = 60; }
+    for (const p of G.players) if (p.alive && !p.boss && !immortal(p)) { p.alive = false; p.deathT = 60; }
   }
 
   if (phase === "play" && mode === "cpu") {
@@ -807,7 +817,7 @@ function soloDied(){
   const why = G.timeUp ? "Time's up" : boss ? "The boss got you" : "The monsters got you";
   if (lives === 0) {
     phase = "matchover"; renderHud();
-    showOverlay(`${why}. Game over`, `You reached level ${level}. Press Enter or Space to play again.`, "victory");
+    showOverlay(`${why}. Game over`, `You reached ${rush ? "boss" : "level"} ${level}. Press Enter or Space to play again.`, "victory");
     return;
   }
   phase = "roundover"; renderHud();
@@ -820,13 +830,17 @@ function soloCleared(p){
     boss = false;
     phase = "victory"; SFX.win(); renderHud();
     for (let i = 0; i < 90; i++) G.confetti.push({ x: Math.random()*N*16, y: -Math.random()*N*16, vy: 0.6 + Math.random(), vx: Math.random() - 0.5, c: [8, 9, 10, 11, 12, 14][i % 6] });
-    showOverlay("Congratulations!", `You cleared all ${LEVELS.length} levels and beat every boss. You win!`, "victory");
+    showOverlay("Congratulations!", rush ? `You beat all ${LEVELS.length} bosses in a row. You win!` : `You cleared all ${LEVELS.length} levels and beat every boss. You win!`, "victory");
     return;
   }
   if (!boss) {
     boss = true; phase = "roundover"; SFX.win(); renderHud();
     const B = BOSSES[level - 1];
     showOverlay(`Level ${level} cleared`, `Next up: the ${LEVELS[level - 1].name} boss. It takes ${B.hp} hits, and it drops bombs too.`, null);
+  } else if (rush) {
+    level++; phase = "roundover"; SFX.win(); renderHud();
+    const B = BOSSES[level - 1];
+    showOverlay("Boss defeated", `Next up: the ${LEVELS[level - 1].name} boss. It takes ${B.hp} hits.`, null);
   } else {
     boss = false; level++; phase = "roundover"; SFX.win(); renderHud();
     showOverlay("Boss defeated", `Next up: level ${level}, ${LEVELS[level - 1].name}. The monsters are faster now.`, null);
@@ -968,7 +982,7 @@ addEventListener("keydown", e => {
   audio();
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
   if (phase === "menu") { if (e.code === "Enter" || e.code === "Space") start("cpu"); return; }
-  if (phase === "matchover" || phase === "victory") { if (e.code === "Enter" || e.code === "Space") start(mode); return; }
+  if (phase === "matchover" || phase === "victory") { if (e.code === "Enter" || e.code === "Space") start(mode, debug, rush); return; }
   if (e.code === "KeyP" || e.code === "Escape") { togglePause(); return; }
   if (e.code === "KeyM") { toggleMute(); return; }
   if (e.repeat) return;
@@ -1010,15 +1024,16 @@ function showOverlay(title, sub, buttons){
   ovModes.hidden = !buttons;
   document.getElementById("ovStyles").hidden = buttons !== "menu";
   document.getElementById("ovOpts").hidden = buttons !== "menu";
-  btnDebug.hidden = buttons !== "menu";
-  if (buttons === "victory") { btnCpu.textContent = "Play again"; btn2p.textContent = "2 players"; }
+  btnDebug.hidden = btnRush.hidden = buttons !== "menu";
+  if (buttons === "victory") { btnCpu.textContent = rush ? "Boss rush again" : "Play again"; btn2p.textContent = "2 players"; }
   else if (buttons === "rematch") { btnCpu.textContent = mode === "cpu" ? "Rematch" : "1P vs monsters"; btn2p.textContent = mode === "2p" ? "Rematch" : "2 players"; }
   else if (buttons) { btnCpu.textContent = "1P vs monsters"; btn2p.textContent = "2 players"; }
   overlay.hidden = false;
 }
 function hideOverlay(){ overlay.hidden = true; }
-const btnCpu = document.getElementById("btnCpu"), btn2p = document.getElementById("btn2p"), btnDebug = document.getElementById("btnDebug");
-btnCpu.addEventListener("click", () => start("cpu"));
+const btnCpu = document.getElementById("btnCpu"), btn2p = document.getElementById("btn2p"), btnDebug = document.getElementById("btnDebug"), btnRush = document.getElementById("btnRush");
+btnCpu.addEventListener("click", () => start("cpu", false, (phase === "victory" || phase === "matchover") && rush));
+btnRush.addEventListener("click", () => start("cpu", false, true));
 btnDebug.addEventListener("click", () => start("cpu", true));
 btn2p.addEventListener("click", () => start("2p"));
 const btnClassic = document.getElementById("btnClassic"), btnEnhanced = document.getElementById("btnEnhanced");
@@ -1074,12 +1089,12 @@ function togglePause(){
   else if (phase === "paused") { phase = "play"; hideOverlay(); }
 }
 
-function start(m, dbg = false){
+function start(m, dbg = false, bossRush = false){
   audio();
-  mode = m; debug = m === "cpu" && dbg; level = 1; boss = false; roundNo = 0; carry = null; wins = [0, 0]; lives = opts.lives; order[0].length = 0; order[1].length = 0; tap[0] = tap[1] = null;
+  mode = m; debug = m === "cpu" && dbg; rush = m === "cpu" && bossRush; level = 1; boss = rush; roundNo = 0; carry = null; wins = [0, 0]; lives = opts.lives; order[0].length = 0; order[1].length = 0; tap[0] = tap[1] = null;
   document.body.classList.toggle("two", m === "2p");
   newRound(); hideOverlay(); phase = "play";
-  statusEl.textContent = debug ? "Debug: you walk through walls · P or Esc pauses" : m === "cpu" ? "1P vs monsters · P or Esc pauses · M mutes" : "2 players · P or Esc pauses · M mutes";
+  statusEl.textContent = debug ? "Debug: you walk through walls and can't die · P or Esc pauses" : rush ? "Boss rush · P or Esc pauses · M mutes" : m === "cpu" ? "1P vs monsters · P or Esc pauses · M mutes" : "2 players · P or Esc pauses · M mutes";
   renderKeys(); renderHud();
 }
 
@@ -1126,7 +1141,7 @@ function renderHud(){
   const lvl = document.getElementById("lvl");
   lvl.hidden = !mode;
   lvl.classList.toggle("debug", debug);
-  lvl.textContent = mode === "2p" ? `${LEVELS[arena()].name.toUpperCase()} · FIRST TO ${winsNeeded()}` : `${debug ? "DEBUG · " : ""}${boss ? "BOSS" : `LEVEL ${level}/${LEVELS.length}`} · LIVES ${lives}`;
+  lvl.textContent = mode === "2p" ? `${LEVELS[arena()].name.toUpperCase()} · FIRST TO ${winsNeeded()}` : `${debug ? "DEBUG · " : ""}${rush ? `BOSS RUSH ${level}/${LEVELS.length}` : boss ? "BOSS" : `LEVEL ${level}/${LEVELS.length}`} · LIVES ${lives}`;
   for (const id of [0, 1]) {
     const p = (G && G.players[id]) || makePlayer(id, 0, 0, false);
     const monsters = id === 1 && mode !== "2p";

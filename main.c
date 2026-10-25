@@ -146,7 +146,8 @@ static u8 malive[NMON], mdeath[NMON], mwait[NMON], mbob[NMON];
 static u8 mspeed;
 
 static u8 level;              /* 0..LEVELS-1 */
-static u8 debug;              /* debug mode: walk through walls (1 player) */
+static u8 debug;              /* debug mode: walk through walls and never die (1 player) */
+static u8 rush;               /* boss rush: only the five bosses, one after another (1 player) */
 static u8 secs, subsec, time_up;
 static u8 pad, pad_old, pad_new, pad2, pad2_old, pad2_new;
 static u8 rng = 0x5A, rng2 = 0xC3;
@@ -805,7 +806,10 @@ static void update_player(void) {
   }
 }
 
-static void kill_player(u8 p) { palive[p] = 0; pdeath[p] = 60; ppen[p] = 0; sfx_die(); }
+static void kill_player(u8 p) {
+  if (debug && nplayers == 1) return;            /* debug mode: immortal */
+  palive[p] = 0; pdeath[p] = 60; ppen[p] = 0; sfx_die();
+}
 
 /* ---------- the boss ----------
    A bomber with its own mind, in player slot 1. It thinks at each cell centre: run from
@@ -1083,19 +1087,21 @@ static void start_level(u8 keep) {
   ppu_on();
 }
 
-/* title: up/down picks 1 or 2 players, SELECT toggles debug mode, START begins */
+/* title: up/down picks 1 player, 2 players or boss rush, SELECT toggles debug mode, START begins */
 static void title_draw_choice(void) {
-  vtext(10, 13, nplayers == 1 ? ">" : " ");
-  vtext(10, 15, nplayers == 2 ? ">" : " ");
-  vtext(4, 19, nplayers == 1 ? " CLEAR 5 LEVELS OF KRAX " : "   BLAST YOUR FRIEND!   ");
+  vtext(10, 12, nplayers == 1 && !rush ? ">" : " ");
+  vtext(10, 14, nplayers == 2 ? ">" : " ");
+  vtext(10, 16, rush ? ">" : " ");
+  vtext(4, 19, rush ? "  BEAT ALL FIVE BOSSES  " : nplayers == 1 ? "  5 LEVELS AND 5 BOSSES " : "   BLAST YOUR FRIEND!   ");
 }
 static void title_screen(void) {
   ppu_off();
   music_stop();
   clear_screen();
   put_text_centered(8, "BOMB YARD");
-  put_text(12, 13, "1 PLAYER");
-  put_text(12, 15, "2 PLAYERS");
+  put_text(12, 12, "1 PLAYER");
+  put_text(12, 14, "2 PLAYERS");
+  put_text(12, 16, "BOSS RUSH");
   put_text_centered(22, "SELECT: DEBUG MODE");
   put_text_centered(26, "PRESS START");
   hide_sprites();
@@ -1109,7 +1115,12 @@ static void title_screen(void) {
     wait_frame();
     read_pad();
     if (pad_new & BTN_START) return;
-    if (pad_new & (BTN_UP | BTN_DOWN)) { nplayers = 3 - nplayers; title_draw_choice(); }
+    if (pad_new & (BTN_UP | BTN_DOWN)) {
+      t = rush ? 2 : nplayers - 1;                 /* 0 1 player, 1 2 players, 2 boss rush */
+      t = (pad_new & BTN_DOWN) ? (t == 2 ? 0 : t + 1) : (t ? t - 1 : 2);
+      rush = t == 2; nplayers = t == 1 ? 2 : 1;
+      title_draw_choice();
+    }
     if (pad_new & BTN_SELECT) { debug ^= 1; vtext(11, 24, debug ? "DEBUG ON" : "        "); }
   }
 }
@@ -1155,7 +1166,7 @@ static u8 play_level(void) {
     if (secs == ROUND_SECS - 2) { malive[0] = malive[1] = 0; }   /* test build only: skip to the next level */
 #endif
     /* the clock: at zero the round is lost (1 player) or a draw (2 players) */
-    if ((palive[0] || palive[1]) && --subsec == 0) {
+    if ((palive[0] || palive[1]) && secs && --subsec == 0) {   /* stops at zero (debug mode lives on) */
       subsec = 60;
       if (--secs == 0) {
         time_up = 1;
@@ -1176,11 +1187,11 @@ static u8 play_level(void) {
   }
 }
 
-/* each level, then its boss; after the last boss the game is won */
+/* each level, then its boss; after the last boss the game is won. Boss rush skips the levels */
 static void solo_game(void) {
-  level = 0; boss = 0;
+  level = 0; boss = rush;                         /* boss rush starts straight at the first boss */
   lives = WIN_CHOICES[opt_lives];
-  message_screen("LEVEL 1", LEVEL_NAME[0], 0, 100);
+  message_screen(rush ? "BOSS RUSH" : "LEVEL 1", LEVEL_NAME[0], 0, 100);
   start_level(0);
   for (;;) {
     if (play_level() == R_CLEARED) {
@@ -1195,8 +1206,8 @@ static void solo_game(void) {
         boss = 1;
         message_screen("LEVEL CLEARED", "NEXT UP", "THE BOSS", 150);
       } else {
-        boss = 0;
-        message_screen("BOSS DEFEATED", "NEXT UP", LEVEL_NAME[level + 1], 150);
+        boss = rush;
+        message_screen("BOSS DEFEATED", rush ? "NEXT BOSS" : "NEXT UP", LEVEL_NAME[level + 1], 150);
         ++level;
       }
       start_level(1);
@@ -1268,7 +1279,7 @@ static u8 options_screen(void) {
   clear_screen();
   level = nplayers == 1 ? 0 : opt_level;
   if (nplayers == 1) {
-    put_text_centered(6, "1 PLAYER OPTIONS");
+    put_text_centered(6, rush ? "BOSS RUSH OPTIONS" : "1 PLAYER OPTIONS");
     put_text(7, 11, "LIVES");
     put_text(7, 13, "ITEMS");
     put_text(7, 15, "PLAYER");
