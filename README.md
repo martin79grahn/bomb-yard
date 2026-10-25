@@ -64,7 +64,7 @@ I webbversionens meny väljer du utseende innan du startar. Valet sparas till n�
 
 ## Manual
 
-Hela spelmanualen finns som PDF i [`manual/bomb-yard-manual.pdf`](manual/bomb-yard-manual.pdf), 13 sidor. Den beskriver alla lägen: NES-versionen för 1 och 2 spelare, banorna med sina monster och bossar, webbversionens Classic mode och New enhanced mode med kontroller för tangentbord och mobil, och Mega Drive-versionen. Den finns också som en sida i Claude (Bomb Yard NES Manual).
+Hela spelmanualen finns som PDF i [`manual/bomb-yard-manual.pdf`](manual/bomb-yard-manual.pdf), 14 sidor. Den beskriver alla lägen: NES-versionen för 1 och 2 spelare, banorna med sina monster och bossar, webbversionens Classic mode och New enhanced mode med kontroller för tangentbord och mobil, och Mega Drive-versionen. Sista sidan före baksidan visar vad som krävs för en riktig kassett: NES-versionen är NROM-256 (mapper 0, 32 KB PRG-ROM, 8 KB CHR-ROM, inget extra RAM), och Mega Drive-versionen är 2 Mbit utan mapper och utan sparminne. Den finns också som en sida i Claude (Bomb Yard NES Manual).
 
 Sidornas källfiler ligger i `manual/project/` och bilderna i `manual/images/`. `manual/tools/build.py` ritar om alla bilder från spelen (sprites ur `chr.bin`, skärmbilder från NES-ROM:en i emulatorn cynes och från webbversionen i Firefox) och bygger PDF:en. Bygg NES-ROM:en först, eftersom verktyget läser RAM-adresserna ur `labels.txt`.
 
