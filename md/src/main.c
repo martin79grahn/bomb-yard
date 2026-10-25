@@ -1068,7 +1068,7 @@ static void options_sprites(void) {
     u8 p;
     nspr = 0;
     for (p = 0; p < nplayers; ++p)
-        spr(p ? 256 : 228, (nplayers == 1 ? 16 : 17 + p * 2) * 8 - 12, SPRITE_SIZE(2, 3),
+        spr(p ? 256 : 228, (nplayers == 1 ? 15 : 17 + p * 2) * 8 - 12, SPRITE_SIZE(2, 3),
             TILE_ATTR_FULL(p ? PAL3 : PAL2, 1, 0, 0, TB + S_BOMBER));
     spr_end();
 }
@@ -1078,10 +1078,11 @@ static const char* const DIGIT[8] = { "0", "1", "2", "3", "4", "5", "6", "7" };
 static void options_draw(void) {
     u8 r;
     if (nplayers == 1) {
-        for (r = 0; r < 3; ++r) text(BG_A, 10, 12 + r * 2, opt_row == r ? ">" : " ", 1);
-        text(BG_A, 22, 12, opt_lives == 0 ? "3 " : opt_lives == 1 ? "5 " : "10", 1);
-        text(BG_A, 22, 14, DIGIT[opt_items], 1);
-        text(BG_A, 22, 16, CHAR_NAME[opt_char[0]], 1);
+        for (r = 0; r < 4; ++r) text(BG_A, 10, 11 + r * 2, opt_row == r ? ">" : " ", 1);
+        text(BG_A, 22, 11, opt_lives == 0 ? "3 " : opt_lives == 1 ? "5 " : "10", 1);
+        text(BG_A, 22, 13, DIGIT[opt_items], 1);
+        text(BG_A, 22, 15, CHAR_NAME[opt_char[0]], 1);
+        text(BG_A, 22, 17, debug ? "ON " : "OFF", 1);
         return;
     }
     for (r = 0; r < 6; ++r) text(BG_A, 10, 9 + r * 2, opt_row == r ? ">" : " ", 1);
@@ -1106,11 +1107,14 @@ static void next_char(u8 p, u8 step) {
 }
 
 static u8 options_screen(void) {
-    u8 rows = nplayers == 1 ? 3 : 6, t;
+    u8 rows = nplayers == 1 ? 4 : 6, t;
     clear_plane_a();
     box(6, 5, 28, 20);
     text_c(BG_A, 7, rush ? "BOSS RUSH OPTIONS" : nplayers == 1 ? "1 PLAYER OPTIONS" : "2 PLAYER OPTIONS", 1);
-    if (nplayers == 1) { text(BG_A, 12, 12, "LIVES", 0); text(BG_A, 12, 14, "ITEMS", 0); text(BG_A, 12, 16, "PLAYER", 0); }
+    if (nplayers == 1) {
+        text(BG_A, 12, 11, "LIVES", 0); text(BG_A, 12, 13, "ITEMS", 0); text(BG_A, 12, 15, "PLAYER", 0);
+        text(BG_A, 12, 17, "DEBUG", 0);         /* walk through walls and never die */
+    }
     else {
         text(BG_A, 12, 9, "LEVEL", 0);
         text(BG_A, 12, 11, "MONSTERS", 0);
@@ -1138,7 +1142,8 @@ static u8 options_screen(void) {
             if (nplayers == 1) {
                 if (opt_row == 0) opt_lives = (opt_lives + t) % 3;
                 else if (opt_row == 1) next_items(t);
-                else next_char(0, t == 2 ? 3 : 1);
+                else if (opt_row == 2) next_char(0, t == 2 ? 3 : 1);
+                else debug ^= 1;
             }
             else if (opt_row == 0) { opt_level = (opt_level + (t == 2 ? LEVELS - 1 : 1)) % LEVELS; PAL_setPalette(PAL0, PAL_ARENA[LEVEL_PAL[opt_level]], DMA); }
             else if (opt_row == 1) opt_monsters ^= 1;

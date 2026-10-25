@@ -22,7 +22,7 @@ Allt från NES-versionen finns med:
 | Start | Börja, pausa och fortsätt |
 | B (i inställningarna) | Tillbaka |
 | Upp/ner (på titelskärmen) | 1 PLAYER, 2 PLAYERS eller BOSS RUSH (bara bossarna, en efter en) |
-| C (på titelskärmen) | Debugläge, där du går genom väggar och inte kan dö (1 spelare) |
+| C (på titelskärmen) | Debugläge, där du går genom väggar och inte kan dö (1 spelare). Det går också att slå på med raden DEBUG på inställningsskärmen |
 
 ## Grafik och ljud
 
