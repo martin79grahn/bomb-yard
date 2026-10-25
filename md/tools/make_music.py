@@ -96,6 +96,8 @@ NOISE_KITS = {
     "slap":   [(0, (1, 1)), (3, (1, 1)), (7, (1, 1)), (11, (1, 1))],
     "wind":   [(15 - min(6, i // 3) if i < 24 else 9 + (i - 24) // 4, (1, 2)) for i in range(48)],
     "crash":  [(min(15, 1 + i // 3), (1, 0)) for i in range(40)],
+    # a wave: the surf swells in over 40 frames and draws back over 60
+    "surf":   [(15 - i // 4 if i < 40 else 5 + (i - 40) // 6, (1, 2)) for i in range(100)],
 }
 
 
@@ -286,6 +288,8 @@ LEAD_LAVA = [62,0,0,0, 0,0,0,0, 63,0,0,0, 62,0,0,0,      0,0,0,0, 0,0,0,0, 1,0,0
              68,0,0,0, 0,0,67,0, 65,0,0,0, 63,0,0,0,     62,0,0,0, 0,0,0,0, 61,0,0,0, 62,0,1,0]
 LEAD_CLOUD = [72,0,0,0, 76,0,0,0, 79,0,0,0, 77,0,76,0,    74,0,0,0, 0,0,0,0, 76,0,0,0, 0,0,0,0,
               77,0,0,0, 76,0,74,0, 72,0,0,0, 74,0,0,0,    71,0,0,0, 0,0,0,0, 72,0,0,0, 0,0,0,0]
+LEAD_SEA = [62,0,65,0, 69,0,72,0, 76,0,72,0, 69,0,65,0,   58,0,62,0, 65,0,69,0, 74,0,69,0, 65,0,62,0,
+            60,0,64,0, 67,0,72,0, 76,0,72,0, 67,0,64,0,   57,0,61,0, 64,0,69,0, 73,0,69,0, 64,0,61,0]
 LEAD_FROST = [76,0,0,0, 83,0,0,0, 81,0,0,0, 0,0,0,0,      79,0,0,0, 78,0,0,0, 74,0,0,0, 0,0,0,0,
               76,0,0,0, 83,0,0,0, 88,0,0,0, 86,0,0,0,     83,0,0,0, 81,0,79,0, 78,0,0,0, 0,0,0,0]
 SHK, DUM, TEK = "shaker", "dum", "tek"
@@ -425,6 +429,30 @@ def cloud():
     return s
 
 
+def sea():
+    """Deep Sea: arpeggios sweeping up and down like waves, the surf rolling in, bubbles rising."""
+    s = Song(9, 128)
+    lead = from_steps(LEAD_SEA, vol=0.9, maxlen=4)
+    for n in lead:
+        n.vib = 0.1
+    s.track(0, "bell", "C", 1.0).extend(repeat(lead, 2, 64))
+    s.track(4, "bell", "L", 0.45).extend(shift(repeat(lead, 2, 64), 3, 12, 0.7))   # a shimmer an octave up
+    roots = [38, 34, 36, 33]
+    s.track(1, "bass", "C", 0.9).extend([Note(rep * 64 + bar * 16 + o, r, 6 if o == 0 else 4, 0.9 if o == 0 else 0.7)
+                                         for rep in range(2) for bar, r in enumerate(roots) for o in (0, 10)])
+    pads = [65, 62, 64, 61]
+    s.track(2, "pad", "R", 0.7).extend([Note(rep * 64 + bar * 16, n, 16, 0.8) for rep in range(2) for bar, n in enumerate(pads)])
+    # bubbles: short notes that slide up fast
+    bub = []
+    for rep in range(2):
+        for k, st in enumerate((6, 7, 27, 44, 45, 46, 58)):
+            bub.append(Note(rep * 64 + st, 74 + (k * 5) % 9, 1, 0.75, slide=1.1))
+    s.track(3, "marimba", "C", 0.8).extend(bub)
+    s.noise += [(i, "surf") for i in range(0, 128, 32)]
+    s.noise += [(i, "shaker") for i in range(10, 128, 16)]
+    return s
+
+
 def boss_song():
     s = Song(6, 128)
     # C minor: Cm Ab Bb G, a driving bass and brass stabs
@@ -498,6 +526,7 @@ SONGS = {
     "frost": frost(),
     "lava": lava(),
     "cloud": cloud(),
+    "sea": sea(),
     "boss": boss_song(),
     "clear": jingle([(0, 72, 1), (1, 76, 1), (2, 79, 1), (3, 84, 2), (6, 79, 1), (7, 84, 8)],
                     [(0, 48, 3), (3, 43, 3), (6, 48, 9)], rate=6, steps=17),

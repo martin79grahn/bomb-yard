@@ -185,7 +185,7 @@ page11 = HEAD.format(title="Mega Drive controls and the bosses", heading="MD CON
     <div style="display: flex; gap: 6px; align-items: flex-end">
       {BOSS_SVGS}
     </div>
-    <p style="margin: 0; font-size: 13px; line-height: 1.4">One waits after every level, dressed in its colours. Each is tougher than the last: 3 to 6 hits, more bombs, a longer blast and more speed. Halfway it turns angry, redder and faster. Its own bombs can't hurt it, only yours can.</p>
+    <p style="margin: 0; font-size: 13px; line-height: 1.4">One waits after every level, dressed in its colours. Each is tougher than the last: 3 to 7 hits, more bombs, a longer blast and more speed. Halfway it turns angry, redder and faster. Its own bombs can't hurt it, only yours can.</p>
   </div>
 """ + FOOT.format(page=11)
 

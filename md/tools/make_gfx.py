@@ -47,6 +47,7 @@ ARENA = {   # floor dark/mid/light, wall dark/mid/light, stone dark/mid/light, f
     "boss":  ["#3c2a56", "#584078", "#7e64a4", "#3a3448", "#6c6680", "#aaa6be", "#5a1e2a", "#8e3040", "#c65c62", "#2a1c40"],
     "lava":  ["#ff8a20", "#36221e", "#7a2a14", "#2a2428", "#4e4650", "#8a8290", "#3e140c", "#7e2814", "#d85a1a", "#1e120f"],
     "cloud": ["#9cc4f0", "#c4dcfa", "#ffffff", "#a07a20", "#e0b84a", "#fff0a8", "#a8bede", "#dce8f8", "#ffffff", "#8fb0dc"],
+    "sea":   ["#0a3a48", "#145a6a", "#3aa0a0", "#8a3030", "#d06058", "#ffa090", "#4a5a66", "#7a8c98", "#b8c8d0", "#062a36"],
 }
 
 
@@ -76,6 +77,9 @@ SUITS = {   # suit shade/mid/light, visor, glint, trim dark/light, boots dark/li
     "angry_lava":  ["#a05a00", "#ffb020", "#fff08a", "#1a0804", "#ff3b30", "#3a3a40", "#7a7a84", "#1a1010", "#3a2a2a"],
     "boss_cloud":  ["#a07a10", "#e8c040", "#fff4b0", "#2a2050", "#5ad8ff", "#7a90c0", "#ffffff", "#806020", "#c0a050"],
     "angry_cloud": ["#901838", "#e04a6a", "#ffa0b8", "#2a2050", "#ffe04a", "#7a90c0", "#ffffff", "#806020", "#c0a050"],
+    # the Deep Sea's shark: dark back, grey flank, white belly, eye, teeth, gums
+    "boss_sea":    ["#3a4c5e", "#6c8296", "#eef2f6", "#0a0e14", "#ffffff", "#8a1a2a", "#c04050", "#202830", "#405060"],
+    "angry_sea":   ["#6a2030", "#b04a5e", "#ffe8ec", "#0a0e14", "#ffffff", "#8a1a2a", "#c04050", "#202830", "#405060"],
 }
 
 
@@ -84,11 +88,11 @@ def sprite_pal(suit):
 
 
 PALETTES = {
-    "arena": [[md(hexrgb(c)) for c in pal0(t)] for t in ("yard", "sand", "frost", "boss", "lava", "cloud")],
+    "arena": [[md(hexrgb(c)) for c in pal0(t)] for t in ("yard", "sand", "frost", "boss", "lava", "cloud", "sea")],
     "items": [md(hexrgb(c)) for c in PAL1],
     # the four characters (Bit, Ruby, Sky, Nova), then the boss and the angry boss
     "sprites": [[md(hexrgb(c)) for c in sprite_pal(s)] for s in ("p1", "p2", "sky", "nova") +
-                tuple(f"{m}_{t}" for t in ("yard", "sand", "frost", "lava", "cloud") for m in ("boss", "angry"))],
+                tuple(f"{m}_{t}" for t in ("yard", "sand", "frost", "lava", "cloud", "sea") for m in ("boss", "angry"))],
 }
 
 # ---------------------------------------------------------------- canvas helpers
@@ -635,6 +639,60 @@ def krax(frame):
     return p
 
 
+def fish(frame):
+    """16x16 Deep Sea fish facing left: an orange clownfish with white bands and a beating tail."""
+    p = Pic(16, 16)
+    wag = (0, -1, 1)[frame]
+    for y in range(16):
+        for x in range(16):
+            px, py = x + 0.5, y + 0.5
+            if ((px - 7.0) / 6.0) ** 2 + ((py - 8.5) / 4.6) ** 2 <= 1:
+                p.set(x, y, 14)
+            elif 11.5 <= px <= 15.5 and abs(py - 8.5 - wag * (px - 11.5) / 4) <= (px - 11.0) * 1.1 and abs(py - 8.5) <= 5.5:
+                p.set(x, y, 13)
+    for y in range(16):
+        for x in range(16):
+            if p.get(x, y) == 14 and x in (4, 5, 9, 10) and 4 <= y <= 13:
+                p.set(x, y, 15)
+    for x, y in ((6, 4), (7, 3), (8, 3), (8, 4)):      # dorsal fin
+        p.set(x, y, 13)
+    p.set(3, 7, 1); p.set(2, 7, 1)                    # eye
+    p.set(1, 10, 1)                                   # mouth
+    p.outline()
+    return p
+
+
+def shark(frame):
+    """32x24 shark facing left: dark back, grey flank, white belly, fin, teeth and a swinging tail."""
+    p = Pic(32, 24)
+    sw = (0, 1)[frame]
+    inbody = lambda px, py: ((px - 14.0) / 12.6) ** 2 + ((py - 13.5) / 6.4) ** 2 <= 1
+    for y in range(24):
+        for x in range(32):
+            px, py = x + 0.5, y + 0.5
+            fin = 11 <= px <= 18 and py >= 1.5 + abs(px - 14.5) * 1.45 and py <= 9
+            tail = 24 <= px <= 32 and ((abs(py - (7.5 - sw)) <= (px - 24) * 0.7 + 0.4 and py < 13.0) or
+                                       (abs(py - (19.0 + sw)) <= (px - 24) * 0.45 + 0.4 and py > 13.0))
+            stalk = 21 <= px <= 27 and abs(py - 13.2) <= 2.0
+            pec = 11 <= px <= 17 and 17.5 <= py <= 23 and (py - 17.5) <= (17 - px) * 0.9 + 1
+            if inbody(px, py) or fin or tail or stalk or pec:
+                col = 2 if py < 11 or fin or tail else 3
+                if inbody(px, py) and py >= 14.5 and px <= 23:
+                    col = 4
+                p.set(x, y, col)
+    p.set(6, 11, 5); p.set(7, 11, 5); p.set(6, 12, 5); p.set(7, 12, 5)   # eye
+    p.set(6, 11, 6)
+    for x in range(2, 12):                           # the jaw line, with teeth
+        p.set(x, 16, 7)
+    for x in (3, 5, 7, 9):
+        p.set(x, 15, 6); p.set(x, 17, 6)
+    for x in (16, 18):                               # gills
+        for y in (12, 13, 14):
+            p.set(x, y, 2)
+    p.outline()
+    return p
+
+
 consts["S_BOMBER"] = len(tiles)        # [direction][frame] 2x3 sprites, 6 tiles each
 for d in range(3):
     for f in range(3):
@@ -646,6 +704,12 @@ for d in range(3):
 consts["S_KRAX"] = len(tiles)          # 3 frames, 2x2 sprites
 for f in range(3):
     add_sprite(krax(f))
+consts["S_FISH"] = len(tiles)          # 3 frames, 2x2 sprites
+for f in range(3):
+    add_sprite(fish(f))
+consts["S_SHARK"] = len(tiles)         # 2 frames, 4x3 sprites (12 tiles each)
+for f in range(2):
+    add_sprite(shark(f))
 # confetti specks (PAL1 colours, 1x1 sprites)
 consts["S_CONFETTI"] = len(tiles)
 for c in (8, 9, 10, 13, 14, 15):
@@ -717,7 +781,7 @@ with open(os.path.join(OUT, "gfx.h"), "w") as f:
     for k, v in consts.items():
         f.write(f"#define {k} {v}\n")
     f.write("\nextern const u32 GFX_TILES[];\n")
-    f.write("extern const u16 PAL_ARENA[6][16];\nextern const u16 PAL_ITEMS[16];\nextern const u16 PAL_SPRITES[14][16];\n")
+    f.write("extern const u16 PAL_ARENA[7][16];\nextern const u16 PAL_ITEMS[16];\nextern const u16 PAL_SPRITES[16][16];\n")
     for k, v in arrays.items():
         f.write(f"extern const u16 {k}[{len(v)}];\n")
 with open(os.path.join(OUT, "gfx.c"), "w") as f:
@@ -729,9 +793,9 @@ with open(os.path.join(OUT, "gfx.c"), "w") as f:
 
     def arr(name, vals):
         return f"const u16 {name} = {{" + ",".join(f"0x{v:04X}" for v in vals) + "};\n"
-    f.write("const u16 PAL_ARENA[6][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["arena"]) + "\n};\n")
+    f.write("const u16 PAL_ARENA[7][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["arena"]) + "\n};\n")
     f.write(arr("PAL_ITEMS[16]", PALETTES["items"]))
-    f.write("const u16 PAL_SPRITES[14][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["sprites"]) + "\n};\n")
+    f.write("const u16 PAL_SPRITES[16][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["sprites"]) + "\n};\n")
     for k, v in arrays.items():
         f.write(f"const u16 {k}[{len(v)}] = {{" + ",".join(str(x) for x in v) + "};\n")
 print(f"gfx: {len(tiles)} tiles")

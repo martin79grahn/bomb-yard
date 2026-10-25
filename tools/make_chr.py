@@ -14,6 +14,9 @@ Pattern table 1 ($1000) holds sprites:
   $00-$2F  the bomber frames (sheet rows 0-2)
   $30,$31  confetti specks
   $4E,$4F,$5E,$5F  the creature ("Krax") monster
+  $6E,$6F,$7E,$7F  the Deep Sea's fish (Krax palette: 1 outline, 2 white stripes, 3 orange)
+  $80-$85,$90-$95  the shark boss, 24 x 16 facing left, two tail frames side by side
+                   (boss palette: 1 outline, 2 grey back, 3 white belly)
 
 Each PICO-8 colour is mapped to one of the NES's 4 palette slots per tile group,
 because every NES tile can only use 3 colours plus transparent/background.
@@ -218,6 +221,72 @@ for t in (0x4E, 0x4F, 0x5E, 0x5F):
 # confetti for the victory screens: a 3 x 3 speck in colour 2 ($30) or colour 3 ($31)
 for t, v in ((0x30, 2), (0x31, 3)):
     spr[t] = encode([[v if x < 3 and y < 3 else 0 for x in range(8)] for y in range(8)])
+
+# the Deep Sea's fish: an orange body with two white bands, a fan tail, facing left
+def fish_pixels():
+    px = [[0] * 16 for _ in range(16)]
+    for y in range(16):
+        for x in range(16):
+            inside = ((x - 6.8) / 6.0) ** 2 + ((y - 8.0) / 4.4) ** 2 <= 1
+            tail = 11 <= x <= 15 and abs(y - 8.0) <= (x - 10.5) * 1.1 and abs(y - 8.0) <= 5
+            if inside or tail:
+                px[y][x] = 3
+    for y in range(16):
+        for x in range(16):
+            if px[y][x] == 3 and (x in (4, 5) or x in (9, 10)) and 3 < y < 13:
+                px[y][x] = 2
+    for x in range(16):                               # outline
+        for y in range(16):
+            if px[y][x] and any(not (0 <= x + dx < 16 and 0 <= y + dy < 16) or not px[y + dy][x + dx]
+                                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                px[y][x] = 1
+    px[7][2] = 1; px[7][3] = 1                        # eye
+    px[10][1] = 1                                     # mouth
+    return px
+
+
+def shark_pixels(frame):
+    """24 x 16, facing left: grey back, white belly, a dorsal fin, teeth, and a tail that swings."""
+    px = [[0] * 24 for _ in range(16)]
+    sw = 1 if frame else 0
+    for y in range(16):
+        for x in range(24):
+            body = ((x - 10.0) / 9.6) ** 2 + ((y - 9.5) / 4.6) ** 2 <= 1
+            fin = 8 <= x <= 13 and y >= 2 + (13 - x) * 0.0 and y >= 1 + abs(x - 10.5) * 1.4 and y <= 6
+            tail = 17 <= x <= 23 and (abs(y - (5.5 - sw)) <= (x - 17) * 0.55 + 0.3 and y < 9.5 - sw * 0.5 or
+                                      abs(y - (13.0 + sw)) <= (x - 17) * 0.35 + 0.3 and y > 9.5)
+            pec = 8 <= x <= 12 and 12 <= y <= 15 and y - 12 <= (12 - x) * 0.9 + 1
+            stalk = 15 <= x <= 19 and abs(y - 9.3) <= 1.6     # where the tail joins
+            if body or fin or tail or pec or stalk:
+                px[y][x] = 2
+    for y in range(16):
+        for x in range(24):
+            if px[y][x] == 2 and y >= 10 and x <= 16 and ((x - 10.0) / 9.6) ** 2 + ((y - 9.5) / 4.6) ** 2 <= 1:
+                px[y][x] = 3
+    for x in range(24):
+        for y in range(16):
+            if px[y][x] and any(not (0 <= x + dx < 24 and 0 <= y + dy < 16) or not px[y + dy][x + dx]
+                                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                px[y][x] = 1
+    px[8][4] = 1; px[8][5] = 1                        # eye
+    for x in (2, 4, 6):                               # teeth
+        px[11][x] = 3
+    for x in range(1, 8):
+        px[12][x] = 1                                 # the mouth line
+    for y in (8, 9):                                  # gills
+        px[y][11] = 1
+    return px
+
+
+fish = fish_pixels()
+for i, t in enumerate((0x6E, 0x6F, 0x7E, 0x7F)):
+    ox, oy = (i & 1) * 8, (i >> 1) * 8
+    spr[t] = encode([row[ox:ox + 8] for row in fish[oy:oy + 8]])
+for frame in range(2):
+    shark = shark_pixels(frame)
+    for ty in range(2):
+        for tx in range(3):
+            spr[0x80 + ty * 16 + frame * 3 + tx] = encode([row[tx * 8:tx * 8 + 8] for row in shark[ty * 8:ty * 8 + 8]])
 
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "chr.bin")
 open(out, "wb").write(b"".join(bg) + b"".join(spr))

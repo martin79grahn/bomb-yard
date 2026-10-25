@@ -89,12 +89,12 @@ static u8 lives, win_target;
 
 /* a boss waits after every level, tougher each time: hits to beat, hits before it gets angry
    (then one more bomb and 5 faster), bombs, blast, speed and frames between its bombs */
-static const u8 BOSS_HP[5]     = { 3,  4,  4,  5,  6 };
-static const u8 BOSS_ANGRY[5]  = { 2,  2,  2,  3,  3 };
-static const u8 BOSS_BOMBS[5]  = { 2,  2,  3,  3,  3 };
-static const u8 BOSS_FIRE_R[5] = { 5,  5,  6,  6,  7 };
-static const u8 BOSS_SPEED[5]  = { 14, 15, 15, 16, 17 };
-static const u8 BOSS_REST[5]   = { 30, 26, 22, 18, 14 };
+static const u8 BOSS_HP[6]     = { 3,  4,  4,  5,  6,  7 };
+static const u8 BOSS_ANGRY[6]  = { 2,  2,  2,  3,  3,  4 };
+static const u8 BOSS_BOMBS[6]  = { 2,  2,  3,  3,  3,  4 };
+static const u8 BOSS_FIRE_R[6] = { 5,  5,  6,  6,  7,  7 };
+static const u8 BOSS_SPEED[6]  = { 14, 15, 15, 16, 17, 18 };
+static const u8 BOSS_REST[6]   = { 30, 26, 22, 18, 14, 12 };
 static u8 boss, bhits, binv, bwait, vb_cell, vb_on;
 
 #define NMON 2
@@ -121,12 +121,14 @@ static const s8 DSTEP[4] = { -1, 1, -GW, GW };
 static const u16 DBTN[4] = { K_LEFT, K_RIGHT, K_UP, K_DOWN };
 static const u8 BACK[4] = { 1, 0, 3, 2 };
 
-#define LEVELS 5
-static const char* const LEVEL_NAME[LEVELS] = { "THE YARD", "SAND PIT", "FROST CAVE", "LAVA PEAK", "CLOUD NINE" };
-static const u8 MONSTER_SPEED[LEVELS] = { 8, 10, 13, 14, 15 };
-static const char* const LEVEL_NUM[LEVELS] = { "LEVEL 1", "LEVEL 2", "LEVEL 3", "LEVEL 4", "LEVEL 5" };
-static const char* const BOSS_TAKES[LEVELS] = { "IT TAKES 3 HITS", "IT TAKES 4 HITS", "IT TAKES 4 HITS", "IT TAKES 5 HITS", "IT TAKES 6 HITS" };
-static const u8 LEVEL_PAL[LEVELS] = { 0, 1, 2, 4, 5 };   /* PAL_ARENA index; 3 is the boss */
+#define LEVELS 6
+#define MON_SPR (level == SEA ? S_FISH : S_KRAX)   /* fish in the Deep Sea, Krax elsewhere */
+#define SEA    5                /* the Deep Sea: fish instead of Krax, and a shark for a boss */
+static const char* const LEVEL_NAME[LEVELS] = { "THE YARD", "SAND PIT", "FROST CAVE", "LAVA PEAK", "CLOUD NINE", "DEEP SEA" };
+static const u8 MONSTER_SPEED[LEVELS] = { 8, 10, 13, 14, 15, 16 };
+static const char* const LEVEL_NUM[LEVELS] = { "LEVEL 1", "LEVEL 2", "LEVEL 3", "LEVEL 4", "LEVEL 5", "LEVEL 6" };
+static const char* const BOSS_TAKES[LEVELS] = { "IT TAKES 3 HITS", "IT TAKES 4 HITS", "IT TAKES 4 HITS", "IT TAKES 5 HITS", "IT TAKES 6 HITS", "IT TAKES 7 HITS" };
+static const u8 LEVEL_PAL[LEVELS] = { 0, 1, 2, 4, 5, 6 };   /* PAL_ARENA index; 3 is the boss */
 
 /* ---------- helpers ---------- */
 static u8 rand8(void) {
@@ -374,11 +376,12 @@ static void draw_hud(void) {
         hud_lives();
         if (boss) {
             text(BG_B, 36, 3, "BOSS", 1);
-            icon(37, 5, PAL3, S_BOSS, S_BOSS + 3, S_BOSS + 1, S_BOSS + 4);
+            if (level == SEA) icon(37, 5, PAL3, S_SHARK, S_SHARK + 3, S_SHARK + 1, S_SHARK + 4);   /* the shark's head */
+            else icon(37, 5, PAL3, S_BOSS, S_BOSS + 3, S_BOSS + 1, S_BOSS + 4);
             hud_boss();
         } else {
-            text(BG_B, 36, 3, "KRAX", 1);
-            icon(37, 4, PAL2, S_KRAX, S_KRAX + 2, S_KRAX + 1, S_KRAX + 3);
+            text(BG_B, 36, 3, level == SEA ? "FISH" : "KRAX", 1);
+            icon(37, 4, PAL2, MON_SPR, MON_SPR + 2, MON_SPR + 1, MON_SPR + 3);
             hud_krax();
         }
     } else {
@@ -389,7 +392,7 @@ static void draw_hud(void) {
         hud_stats(1);
         text(BG_B, 0, 21, "WINS", 0); text(BG_B, 36, 21, "WINS", 0);
         hud_wins(0); hud_wins(1);
-        if (opt_monsters) { icon(37, 17, PAL2, S_KRAX, S_KRAX + 2, S_KRAX + 1, S_KRAX + 3); }
+        if (opt_monsters) { icon(37, 17, PAL2, MON_SPR, MON_SPR + 2, MON_SPR + 1, MON_SPR + 3); }
     }
 }
 
@@ -714,11 +717,20 @@ static void spr_end(void) {
 static const u8 DIR_ROW[4] = { 2, 2, 1, 0 };
 static const u8 WALK[4] = { 1, 0, 2, 0 };
 
+static u8 shark_fl;              /* the shark faces right */
+
 static void draw_bomber(u8 p) {
     u8 f, flip;
     u16 base, pal;
     if (!palive[p] && !(pdeath[p] & 4)) return;
     if (p && boss && palive[1] && (binv & 4)) return;
+    if (p && boss && level == SEA) {            /* the shark: 4 x 3 tiles, tail swinging as it swims */
+        if (pdir[1] < 2) shark_fl = pdir[1];
+        f = pmoving[1] ? ((frame_count >> 3) & 1) : 0;
+        spr(AX * 8 + px[1] - 8, AY * 8 + py[1] - 4, SPRITE_SIZE(4, 3),
+            TILE_ATTR_FULL(PAL3, 0, 0, shark_fl, TB + S_SHARK + f * 12));
+        return;
+    }
     f = pmoving[p] ? WALK[pframe[p]] : 0;
     flip = pdir[p] == 1;
     base = (p && boss) ? S_BOSS : S_BOMBER;
@@ -736,7 +748,7 @@ static void draw_sprites(void) {
         if (!malive[m] && !(mdeath[m] & 4)) continue;
         f = mmoving[m] ? 1 + ((mbob[m] >> 3) & 1) : 0;
         spr(AX * 8 + mx[m], AY * 8 + my[m], SPRITE_SIZE(2, 2),
-            TILE_ATTR_FULL(PAL2, 0, 0, mdir[m] == 1, TB + S_KRAX + f * 4));
+            TILE_ATTR_FULL(PAL2, 0, 0, mdir[m] == 1, TB + MON_SPR + f * 4));
     }
     spr_end();
 }
@@ -792,7 +804,8 @@ static const u8* level_song(void) {
     case 1: return xgm_sand;
     case 2: return xgm_frost;
     case 3: return xgm_lava;
-    default: return xgm_cloud;
+    case 4: return xgm_cloud;
+    default: return xgm_sea;
     }
 }
 
@@ -889,7 +902,7 @@ static u8 play_level(void) {
 }
 
 static const char* death_reason(void) {
-    return time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : "THE KRAX GOT YOU";
+    return time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : level == SEA ? "A FISH GOT YOU" : "THE KRAX GOT YOU";
 }
 
 static void solo_game(void) {
@@ -1023,7 +1036,7 @@ static void title_choice(void) {
     text(BG_A, 14, 13, nplayers == 1 && !rush ? ">" : " ", 1);
     text(BG_A, 14, 15, nplayers == 2 ? ">" : " ", 1);
     text(BG_A, 14, 17, rush ? ">" : " ", 1);
-    text(BG_A, 10, 19, rush ? " BEAT ALL FIVE BOSSES" : nplayers == 1 ? "5 LEVELS AND 5 BOSSES" : " BLAST YOUR FRIEND!  ", 0);
+    text(BG_A, 10, 19, rush ? " BEAT ALL SIX BOSSES " : nplayers == 1 ? "6 LEVELS AND 6 BOSSES" : " BLAST YOUR FRIEND!  ", 0);
 }
 
 static void title_screen(void) {
@@ -1062,7 +1075,7 @@ static void title_screen(void) {
     }
 }
 
-static const char* const LEVEL_PAD[LEVELS] = { "THE YARD  ", "SAND PIT  ", "FROST CAVE", "LAVA PEAK ", "CLOUD NINE" };
+static const char* const LEVEL_PAD[LEVELS] = { "THE YARD  ", "SAND PIT  ", "FROST CAVE", "LAVA PEAK ", "CLOUD NINE", "DEEP SEA  " };
 static u8 opt_row;
 
 /* the chosen characters stand next to their names */

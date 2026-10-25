@@ -272,7 +272,9 @@ const BOSS_SHEETS = [
   [{7:12, 6:1, 13:1}, {7:14, 6:1, 13:1}],    // Frost Cave: ice blue
   [{7:8, 6:2, 13:2},  {7:10, 6:9, 13:9}],    // Lava Peak: molten red, white-hot when angry
   [{7:10, 6:9, 13:9}, {7:8, 6:9, 13:9}],     // Cloud Nine: gold
+  [{7:6, 6:5, 13:5},  {7:8, 6:5, 13:5}],     // Deep Sea: shark grey (only its icon; the shark has its own sprite)
 ].map(pair => pair.map(m => buildSheet(m)));
+function sharkFacesRight(p){ if (p.dir === "l" || p.dir === "r") p.face = p.dir; return p.face === "r"; }
 function bossSheet(b){ return BOSS_SHEETS[level - 1][b.angry ? 1 : 0]; }
 const FLASH = {}; for (let i = 0; i < 16; i++) FLASH[i] = 7;
 const SHEET_FLASH = buildSheet(FLASH);
@@ -301,14 +303,16 @@ const ANIM = {
 const DIRS = { l: [-1,0], r: [1,0], u: [0,-1], d: [0,1] };
 const MONSTER_SPR = 78, MONSTER_COUNT = 2;
 const ROUND_TIME = 3 * 60 * 60, STRESS_TIME = 20 * 60;   // three minutes per round (60 frames a second); music speeds up for the last 20 s
-// five levels in 1-player mode: new colours for floor and blocks, and the monsters get a bit quicker
+// six levels in 1-player mode: new colours for floor and blocks, and the monsters get a bit quicker
 const LEVELS = [
   { name: "The Yard",   monsterSpeed: 0.5,  remap: null },
   { name: "Sand Pit",   monsterSpeed: 0.64, remap: { 11: 15, 3: 9, 7: 10, 6: 4, 5: 0 } },
   { name: "Frost Cave", monsterSpeed: 0.8,  remap: { 11: 1, 3: 13, 7: 7, 6: 12, 5: 1 } },
   { name: "Lava Peak",  monsterSpeed: 0.86, remap: { 11: 4, 3: 8, 7: 6, 6: 5, 5: 0 } },
   { name: "Cloud Nine", monsterSpeed: 0.92, remap: { 11: 12, 3: 7, 7: 7, 6: 10, 5: 9 } },
+  { name: "Deep Sea",   monsterSpeed: 1.0,  remap: { 11: 2, 3: 12, 7: 15, 6: 14, 5: 8 } },
 ];
+const SEA = 5;           // the Deep Sea: fish instead of monsters, and a shark for a boss
 const LEVEL_SHEETS = LEVELS.map(l => l.remap ? buildSheet(l.remap) : SHEET);
 const PICKUP_SPR = { shoe: SHOE_SPR, fire: FIRE_POWER_SPR, bomb: BOMB_POWER_SPR };
 
@@ -352,7 +356,8 @@ let boomedThisFrame = false;
 //   Frost Cave: slow bells in E minor answered by echoes, long bass notes, a breath of wind
 //   Lava Peak:  a moaning dirge in D phrygian, a deep rumbling bass, a heartbeat drum
 //   Cloud Nine: a hymn in C major held like an organ over organ pedal notes
-const L = 0x80, DUM = 1, TEK = 2, SHK = 3, WND = 4;
+//   Deep Sea:   arpeggios sweeping up and down like waves with echoes, surf, and bubbles that rise
+const L = 0x80, DUM = 1, TEK = 2, SHK = 3, WND = 4, WAV = 5;
 const SONGS = [
   { rate: 7, duty: 0.25, vol: 11, decay: 1, floor: 0, triShort: 16, bend: 7, vibrato: false, echo: false,
     lead: [81,0,0,79, 0,76,0,0, 79,0,76,0, 74,0,0,0,   76,0,0,74, 0,72,0,0, 74,0,72,0, 69,0,0,0,
@@ -384,10 +389,17 @@ const SONGS = [
     tri:  [48+L,0,0,0, 0,0,0,0, 52+L,0,0,0, 53+L,0,0,0,  55+L,0,0,0, 0,0,0,0, 48+L,0,0,0, 0,0,0,0,
            53+L,0,0,0, 0,0,55+L,0, 57+L,0,0,0, 53+L,0,0,0,  55+L,0,0,0, 0,0,0,0, 48+L,0,0,0, 0,0,0,0],
     drum: [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0] },
+  { rate: 9, duty: 0.5, vol: 8, decay: 4, floor: 2, triShort: 10, bend: -7, vibrato: true, echo: true,
+    lead: [62,0,65,0, 69,0,72,0, 76,0,72,0, 69,0,65,0,   58,0,62,0, 65,0,69,0, 74,0,69,0, 65,0,62,0,
+           60,0,64,0, 67,0,72,0, 76,0,72,0, 67,0,64,0,   57,0,61,0, 64,0,69,0, 73,0,69,0, 64,0,61,0],
+    tri:  [38+L,0,0,0, 0,0,64,67, 0,38+L,0,0, 0,0,0,0,  34+L,0,0,0, 0,0,0,0, 0,0,0,65, 0,34+L,0,0,
+           36+L,0,0,0, 0,0,0,0, 0,0,0,0, 62,64,67,0,  33+L,0,0,0, 0,0,0,0, 0,0,66,0, 33+L,0,0,0],
+    drum: [WAV,0,0,0, 0,0,0,0, 0,0,SHK,0, 0,0,0,0] },
 ];
 // drum kit: how each noise hit is filtered, its starting volume (0-15) and frames per volume step
 const KIT = { [DUM]: { type: "lowpass", f: 380, q: 1, vol: 12, dec: 1 }, [TEK]: { type: "bandpass", f: 2600, q: 1.2, vol: 9, dec: 1 },
-              [SHK]: { type: "highpass", f: 6500, q: 0.7, vol: 3, dec: 1 }, [WND]: { type: "bandpass", f: 1400, q: 0.6, vol: 3, dec: 16 } };
+              [SHK]: { type: "highpass", f: 6500, q: 0.7, vol: 3, dec: 1 }, [WND]: { type: "bandpass", f: 1400, q: 0.6, vol: 3, dec: 16 },
+              [WAV]: { type: "lowpass", f: 900, q: 0.5, vol: 7, dec: 9 } };
 const FPS = 60.0988, CPU_HZ = 1789773;
 let musicStep = 0, musicNext = 0, musicArena = -1, leadV = null, triV = null, noiseBuf = null, lfo = null;
 const pulseWaves = {};
@@ -489,6 +501,7 @@ const BOSSES = [
   { hp: 4, angryAt: 2, bombs: 3, fire: 6, speed: 0.98,  angrySpeed: 1.25, hesitate: 0.05 },
   { hp: 5, angryAt: 3, bombs: 3, fire: 6, speed: 1.03,  angrySpeed: 1.3,  hesitate: 0.04 },
   { hp: 6, angryAt: 3, bombs: 3, fire: 7, speed: 1.1,   angrySpeed: 1.38, hesitate: 0.03 },
+  { hp: 7, angryAt: 4, bombs: 4, fire: 7, speed: 1.15,  angrySpeed: 1.45, hesitate: 0.025 },
 ];
 const PEN_COUNT = 2;     // penetrator bombs hidden in every arena
 // 2-player options, kept between visits: arena (-1 = a new one every round), monsters, wins needed
@@ -817,7 +830,7 @@ function hitBoss(b){
 function soloDied(){
   lives = Math.max(0, lives - 1);
   if (carry) carry.pen = false;                // the penetrator is lost when you die
-  const why = G.timeUp ? "Time's up" : boss ? "The boss got you" : "The monsters got you";
+  const why = G.timeUp ? "Time's up" : boss ? "The boss got you" : arena() === SEA ? "A fish got you" : "The monsters got you";
   if (lives === 0) {
     phase = "matchover"; renderHud();
     showOverlay(`${why}. Game over`, `You reached ${rush ? "boss" : "level"} ${level}. Press Enter or Space to play again.`, "victory");
@@ -1133,6 +1146,51 @@ const PEN_ICON = (() => {
   x.putImageData(img, 0, 0);
   return c;
 })();
+// the Deep Sea's fish (orange with white bands, facing left) and the shark boss (24 x 16, two tail frames)
+function pixelArt(w, h, colours, at){
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const x = c.getContext("2d"), img = x.createImageData(w, h), px = [];
+  for (let y = 0; y < h; y++) for (let i = 0; i < w; i++) px[y*w + i] = at(i, y);
+  for (let y = 0; y < h; y++) for (let i = 0; i < w; i++) {    // a dark outline round the shape
+    if (!px[y*w + i]) continue;
+    const edge = [[1,0],[-1,0],[0,1],[0,-1]].some(([dx, dy]) => i+dx < 0 || i+dx >= w || y+dy < 0 || y+dy >= h || !px[(y+dy)*w + i+dx]);
+    if (edge) px[y*w + i] = 1;
+  }
+  return { px, w, h, paint(extra){
+    for (const [i, y, v] of extra) px[y*w + i] = v;
+    for (let k = 0; k < w*h; k++) if (px[k]) img.data.set([...colours[px[k]], 255], k*4);
+    x.putImageData(img, 0, 0); return c;
+  } };
+}
+const FISH_ICON = pixelArt(16, 16, { 1: [0, 0, 0], 2: [255, 241, 232], 3: [255, 163, 0] }, (x, y) => {
+  const body = ((x - 6.8) / 6.0) ** 2 + ((y - 8) / 4.4) ** 2 <= 1;
+  const tail = x >= 11 && x <= 15 && Math.abs(y - 8) <= (x - 10.5) * 1.1 && Math.abs(y - 8) <= 5;
+  if (!body && !tail) return 0;
+  return (x === 4 || x === 5 || x === 9 || x === 10) && y > 3 && y < 13 && body ? 2 : 3;
+}).paint([[2, 7, 1], [3, 7, 1], [1, 10, 1]]);
+const FISH_FLASH = pixelArt(16, 16, { 1: [255, 241, 232], 2: [255, 241, 232], 3: [255, 241, 232] }, (x, y) =>
+  ((x - 6.8) / 6.0) ** 2 + ((y - 8) / 4.4) ** 2 <= 1 || (x >= 11 && Math.abs(y - 8) <= (x - 10.5) * 1.1 && Math.abs(y - 8) <= 5) ? 3 : 0).paint([]);
+function sharkArt(frame, back){
+  const sw = frame ? 1 : 0;
+  const inBody = (x, y) => ((x - 10) / 9.6) ** 2 + ((y - 9.5) / 4.6) ** 2 <= 1;
+  const art = pixelArt(24, 16, { 1: [0, 0, 0], 2: back, 3: [255, 241, 232] }, (x, y) => {
+    const fin = x >= 8 && x <= 13 && y >= 1 + Math.abs(x - 10.5) * 1.4 && y <= 6;
+    const tail = x >= 17 && x <= 23 && ((Math.abs(y - (5.5 - sw)) <= (x - 17) * 0.55 + 0.3 && y < 9.5 - sw * 0.5) ||
+                                        (Math.abs(y - (13 + sw)) <= (x - 17) * 0.35 + 0.3 && y > 9.5));
+    const pec = x >= 8 && x <= 12 && y >= 12 && y - 12 <= (12 - x) * 0.9 + 1;
+    const stalk = x >= 15 && x <= 19 && Math.abs(y - 9.3) <= 1.6;
+    if (!(inBody(x, y) || fin || tail || pec || stalk)) return 0;
+    return y >= 10 && x <= 16 && inBody(x, y) ? 3 : 2;
+  });
+  return art.paint([[4, 8, 1], [5, 8, 1], [2, 11, 3], [4, 11, 3], [6, 11, 3], [1, 12, 1], [2, 12, 1], [3, 12, 1], [4, 12, 1], [5, 12, 1], [6, 12, 1], [7, 12, 1], [11, 8, 1], [11, 9, 1]]);
+}
+const SHARK = [[194, 195, 199], [255, 0, 77]].map(back => [sharkArt(0, back), sharkArt(1, back)]);   // [angry][frame]
+const SHARK_FLASH = [sharkArt(0, [255, 241, 232]), sharkArt(1, [255, 241, 232])];
+function drawFlipped(img, x, y, flip){
+  if (!flip) { ctx.drawImage(img, Math.round(x), Math.round(y)); return; }
+  ctx.save(); ctx.translate(Math.round(x) + img.width, Math.round(y)); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0); ctx.restore();
+}
+function copyCanvas(src){ const c = document.createElement("canvas"); c.width = src.width; c.height = src.height; c.getContext("2d").drawImage(src, 0, 0); return c; }
 function penCanvas(){ const c = document.createElement("canvas"); c.width = 16; c.height = 16; c.getContext("2d").drawImage(PEN_ICON, 0, 0); return c; }
 function heartCanvas(){ const c = document.createElement("canvas"); c.width = 16; c.height = 16; c.getContext("2d").drawImage(HEART, 0, 0); return c; }
 
@@ -1161,13 +1219,13 @@ function renderHud(){
     const rows = monsters && bp
       ? [[ANIM.d.f[0], "Hits to go", `${Math.max(0, bp.hp)}/${BOSSES[level - 1].hp}`, bossSheet(bp)], [BOMB_POWER_SPR, "Bombs", bp.bombs], [FIRE_POWER_SPR, "Blast range", bp.fire]]
       : monsters
-      ? [[MONSTER_SPR, "Monsters left", `${left}/${total}`, SHEET_MON]]
+      ? [arena() === SEA ? ["fish", "Fish left", `${left}/${total}`] : [MONSTER_SPR, "Monsters left", `${left}/${total}`, SHEET_MON]]
       : [[BOMB_POWER_SPR, "Bombs", p.bombs], [FIRE_POWER_SPR, "Blast range", p.fire], [SHOE_SPR, "Speed", `${p.speedUps}/${MAX_SPEEDUPS}`]]
         .concat(p.pen ? [["pen", "Penetrator", "on"]] : [])
         .concat(mode === "cpu" && id === 0 ? [["heart", "Lives", lives]] : []);
     for (const [spn, label, val, sheet] of rows) {
       const row = document.createElement("div"); row.className = "stat";
-      row.append(spn === "heart" ? heartCanvas() : spn === "pen" ? penCanvas() : iconCanvas(spn, sheet));
+      row.append(spn === "heart" ? heartCanvas() : spn === "pen" ? penCanvas() : spn === "fish" ? copyCanvas(FISH_ICON) : iconCanvas(spn, sheet));
       row.insertAdjacentHTML("beforeend", `<dt>${label}</dt><dd>${val}</dd>`);
       dl.append(row);
     }
@@ -1205,7 +1263,8 @@ function draw(){
     if (!m.alive && m.deathT <= 0) continue;
     if (!m.alive && Math.floor(m.deathT / 3) % 2) continue;
     const hop = m.moving && Math.floor(m.bob / 8) % 2 ? -1 : 0;   // a little waddle while walking
-    spr(m.alive ? SHEET_MON : SHEET_MON_FLASH, MONSTER_SPR, m.x, m.y + hop, 2, 2, m.dir === "r");
+    if (arena() === SEA) drawFlipped(m.alive ? FISH_ICON : FISH_FLASH, m.x, m.y + hop, m.dir === "r");
+    else spr(m.alive ? SHEET_MON : SHEET_MON_FLASH, MONSTER_SPR, m.x, m.y + hop, 2, 2, m.dir === "r");
   }
   const ps = [...G.players].sort((a, b) => a.y - b.y);
   for (const p of ps) {
@@ -1214,6 +1273,11 @@ function draw(){
     let sheet = p.boss ? bossSheet(p) : charOf(p.id).sheet;
     if (p.boss && p.alive && p.inv && Math.floor(p.inv / 4) % 2) continue;   // blinks while it can't be hurt
     if (!p.alive) { if (Math.floor(p.deathT / 3) % 2) continue; sheet = SHEET_FLASH; }
+    if (p.boss && level - 1 === SEA) {          // the shark swims, its tail swinging
+      const f = p.moving ? Math.floor(G.t / 8) % 2 : 0;
+      drawFlipped(p.alive ? SHARK[p.angry ? 1 : 0][f] : SHARK_FLASH[f], p.x - 4, p.y, sharkFacesRight(p));
+      continue;
+    }
     spr(sheet, a.f[fr], p.x, p.y - 8, 2, 3, a.flip[fr]);
   }  // timer, centred on the top wall
   if (mode) {
@@ -1288,9 +1352,13 @@ const THEMES = [
     wall: { top: "#f4dc94", front: "#e2c26a", side: "#c6a24a", line: "rgba(150,110,30,0.5)", trim: "#fff2b0" },
     crate: { top: "#ffffff", front: "#e9f1ff", side: "#cfdaf0", line: "rgba(140,165,210,0.6)", kind: "cloud" },
     plinth: "#c9a64a", blob: "#ffe27a", beetle: "#7a8fc0", wisp: "#fff4c0", debris: ["#ffffff", "#e9f1ff", "#ffd84a"], ember: "#fff1a8" },
+  { name: "sea",   bg: ["#0f5a7a", "#03142a"], floorA: "#2a7f8f", floorB: "#257585", speck: "rgba(190,255,255,0.35)", speck2: "rgba(90,200,120,0.6)",
+    wall: { top: "#f08a7a", front: "#cc6158", side: "#a24848", line: "rgba(120,30,30,0.4)", trim: "#ffc0b0" },
+    crate: { top: "#9fb0bc", front: "#7d8f9c", side: "#627380", line: "rgba(40,60,70,0.6)", kind: "barnacle" },
+    plinth: "#0c2a3a", blob: "#ff9a3a", beetle: "#3a6a8a", wisp: "#bff4ff", debris: ["#f08a7a", "#9fb0bc", "#d8ffff"], ember: "#d8ffff" },
 ];
 // which monsters come out on each level of the 1-player game
-const ENH_MONSTERS = [["blob", "beetle"], ["beetle", "wisp"], ["wisp", "blob", "beetle"], ["blob", "wisp", "beetle"], ["wisp", "wisp", "beetle"]];
+const ENH_MONSTERS = [["blob", "beetle"], ["beetle", "wisp"], ["wisp", "blob", "beetle"], ["blob", "wisp", "beetle"], ["wisp", "wisp", "beetle"], ["fish", "fish", "fish"]];
 
 // seeded random so a theme's floor texture looks the same every frame
 function seeded(seed){ let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
@@ -1341,6 +1409,12 @@ function boxSprite(m, wall){
     c.beginPath(); c.moveTo(6, CD + 4); c.lineTo(14, CD + BH * 0.45); c.lineTo(10, CD + BH - 4);
     c.moveTo(14, CD + BH * 0.45); c.lineTo(28, CD + BH * 0.55); c.lineTo(CW - 6, CD + BH * 0.3);
     c.moveTo(28, CD + BH * 0.55); c.lineTo(32, CD + BH - 3); c.stroke(); c.shadowBlur = 0;
+  } else if (m.kind === "barnacle") {
+    // a rock crusted with barnacles and a strand of weed
+    c.fillStyle = "rgba(240,240,230,0.85)";
+    for (const [bx, by] of [[10, CD + 8], [24, CD + 14], [36, CD + 7], [16, CD + 20], [32, CD + 22]]) { c.beginPath(); c.arc(bx, by, 2.6, 0, Math.PI * 2); c.fill(); }
+    c.strokeStyle = "#3aa860"; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(6, CD + BH - 2); c.quadraticCurveTo(2, CD + BH / 2, 8, CD + 4); c.stroke();
   } else if (m.kind === "cloud") {
     // a fluffy cloud: round puffs over the block
     c.fillStyle = "rgba(255,255,255,0.95)";
@@ -1431,6 +1505,10 @@ function buildFloor(th){
         if (i > 1) continue;   // a few glowing cracks in the basalt
         c.strokeStyle = rnd() < 0.7 ? th.speck : th.speck2; c.lineWidth = 1.3;
         c.beginPath(); c.moveTo(x - 5, y - 1); c.lineTo(x - 1, y + 1.5); c.lineTo(x + 2, y - 1); c.lineTo(x + 6, y + 1); c.stroke();
+      } else if (th.name === "sea") {
+        if (i > 2) continue;   // light rippling on the sand, and now and then a sprig of weed
+        if (rnd() < 0.8) { c.strokeStyle = th.speck; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x - 6, y); c.quadraticCurveTo(x - 2, y - 2, x, y); c.quadraticCurveTo(x + 2, y + 2, x + 6, y); c.stroke(); }
+        else { c.strokeStyle = th.speck2; c.lineWidth = 1.6; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x - 2, y - 4, x + 1, y - 8); c.stroke(); }
       } else if (th.name === "cloud") {
         if (rnd() < 0.85) { c.fillStyle = th.speck; c.beginPath(); c.ellipse(x, y, 5 + rnd() * 3, 2, 0, 0, Math.PI * 2); c.fill(); }
         else { c.fillStyle = th.speck2; c.beginPath(); c.arc(x, y, 1.2, 0, Math.PI * 2); c.fill(); }
@@ -1502,11 +1580,35 @@ const BOSS_SUITS = [
   [{ suit: "#8fdcff", shade: "#2a6aa8", accent: "#ffffff", glow: "#cfefff" }, { suit: "#ff7aa8", shade: "#2a6aa8", accent: "#ffffff", glow: "#ff9ac0" }],
   [{ suit: "#ff4a1a", shade: "#5a0e04", accent: "#ffb020", glow: "#ff7a2a" }, { suit: "#ffd23f", shade: "#a02a08", accent: "#ff3b30", glow: "#ffe27a" }],
   [{ suit: "#ffe27a", shade: "#c08a20", accent: "#ffffff", glow: "#fff4c0" }, { suit: "#ff5c7a", shade: "#c08a20", accent: "#ffffff", glow: "#ff9ab0" }],
+  [{ suit: "#7f93a6", shade: "#4a5c6e", accent: "#ffffff", glow: "#bfe8ff" }, { suit: "#c8506a", shade: "#7a2234", accent: "#ffffff", glow: "#ff9ab0" }],
 ];
 function bossSuit(b){ return BOSS_SUITS[level - 1][b.angry ? 1 : 0]; }
 function blobShadow(c, x, y, rx, ry, a = 0.28){ c.fillStyle = `rgba(0,0,0,${a})`; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); c.fill(); }
 
+// the Deep Sea's boss: a shark gliding over the sand, fin up, tail beating, jaws full of teeth
+function drawShark(c, p, t){
+  const [x, y] = proj(p.x / 16 + 0.5, p.y / 16 + 0.5), face = sharkFacesRight(p) ? 1 : -1;
+  let scale = 1.35, alpha = 1, spin = 0;
+  if (p.alive && p.inv && Math.floor(p.inv / 4) % 2) alpha = 0.3;
+  if (!p.alive) { const k = p.deathT / 60; scale *= 0.4 + 0.6 * k; alpha = k; spin = (1 - k) * 6; }
+  const back = p.angry ? "#c8506a" : "#7f93a6", dark = p.angry ? "#7a2234" : "#4a5c6e";
+  blobShadow(c, x, y + 1, 22 * scale, 6 * scale, 0.22);
+  c.save(); c.globalAlpha = alpha; c.translate(x, y - 14 - Math.sin(t * 0.003) * 2); c.scale(scale * face, scale); c.rotate(spin);
+  const wag = Math.sin((p.moving ? G.t * 0.3 : t * 0.004)) * 3;
+  c.fillStyle = dark;
+  c.beginPath(); c.moveTo(-14, -1); c.lineTo(-24, -11 + wag); c.lineTo(-20, -1); c.lineTo(-23, 8 + wag); c.closePath(); c.fill();   // tail
+  c.beginPath(); c.moveTo(-2, -7); c.lineTo(3, -19); c.lineTo(7, -7); c.closePath(); c.fill();                                      // fin
+  const g = c.createLinearGradient(0, -9, 0, 9); g.addColorStop(0, back); g.addColorStop(0.55, back); g.addColorStop(0.56, "#f4f6f8"); g.addColorStop(1, "#d6dde4");
+  c.fillStyle = g; c.beginPath(); c.ellipse(0, 0, 18, 8.5, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = dark; c.beginPath(); c.moveTo(0, 5); c.lineTo(-6, 12); c.lineTo(4, 6); c.closePath(); c.fill();                      // flipper
+  c.strokeStyle = dark; c.lineWidth = 1; for (const gx of [7, 9, 11]) { c.beginPath(); c.moveTo(gx, -3); c.lineTo(gx - 1, 2); c.stroke(); }
+  c.fillStyle = "#101820"; c.beginPath(); c.arc(12, -2.5, 1.8, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = "#5a1020"; c.lineWidth = 1.4; c.beginPath(); c.moveTo(17, 2.5); c.quadraticCurveTo(12, 5.5, 8, 3.5); c.stroke();
+  c.fillStyle = "#fff"; for (const tx of [10, 12.5, 15]) { c.beginPath(); c.moveTo(tx, 3.4); c.lineTo(tx + 1, 5.6); c.lineTo(tx + 2, 3.6); c.closePath(); c.fill(); }
+  c.restore();
+}
 function drawBomber(c, p, t){
+  if (p.boss && level - 1 === SEA) { drawShark(c, p, t); return; }
   const [x, y] = proj(p.x / 16 + 0.5, p.y / 16 + 0.5), s = p.boss ? bossSuit(p) : charOf(p.id).suit;
   let scale = p.boss ? 1.25 : 1, alpha = 1, spin = 0;
   if (p.boss && p.alive && p.inv && Math.floor(p.inv / 4) % 2) alpha = 0.3;
@@ -1553,7 +1655,20 @@ function drawMonster(c, m, t){
   if (!m.alive) { const k = m.deathT / 40; scale = 0.3 + 0.7 * k; alpha = k; white = Math.floor(m.deathT / 3) % 2 === 0; }
   const kind = m.kind || "blob", look = { l: -1, r: 1, u: 0, d: 0 }[m.dir] || 0, lookY = m.dir === "u" ? -1.5 : m.dir === "d" ? 1.5 : 0;
   c.save(); c.globalAlpha = alpha;
-  if (kind === "wisp") {
+  if (kind === "fish") {   // a clownfish that swims along, tail beating
+    const hover = 24 + Math.sin(m.bob * 0.1) * 3, face = m.dir === "r" ? 1 : m.dir === "l" ? -1 : (m.face || -1);
+    if (m.dir === "l" || m.dir === "r") m.face = face;
+    blobShadow(c, x, y + 1, 13 * scale, 4.5 * scale, 0.18);
+    c.translate(x, y - hover); c.scale(scale * -face * 1.35, scale * 1.35);   // swims above the sand, clear of the rocks
+    const wag = Math.sin(m.bob * 0.4) * 3;
+    c.fillStyle = white ? "#fff" : th.blob;
+    c.beginPath(); c.moveTo(9, 0); c.lineTo(17, -7 + wag); c.lineTo(17, 7 + wag); c.closePath(); c.fill();
+    const g = c.createRadialGradient(-5, -4, 1, 0, 0, 14); g.addColorStop(0, "#ffd9a0"); g.addColorStop(0.5, white ? "#fff" : th.blob); g.addColorStop(1, "#c4560c");
+    c.fillStyle = g; c.beginPath(); c.ellipse(0, 0, 12, 8, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = "#fff"; c.strokeStyle = "#1b1726"; c.lineWidth = 1;
+    for (const bx of [-5, 3]) { c.beginPath(); c.ellipse(bx, 0, 2.2, 7.4, 0, 0, Math.PI * 2); c.fill(); c.stroke(); }
+    c.fillStyle = "#1b1726"; c.beginPath(); c.arc(-8, -2, 1.8, 0, Math.PI * 2); c.fill();
+  } else if (kind === "wisp") {
     const hover = 14 + Math.sin(m.bob * 0.12) * 3;
     blobShadow(c, x, y + 1, 11 * scale, 4 * scale, 0.2);
     c.translate(x, y - hover); c.scale(scale, scale);
@@ -1716,10 +1831,11 @@ function drawParticles(c){
 function drawEnhanced(now){
   const c = c3, ai = arena(), th = THEMES[ai], spr3 = themeSprites(ai);
   if (floorKey !== ai || !floorCache) { floorCache = buildFloor(th); floorKey = ai; }
-  // embers drift up on Lava Peak, golden sparkles on Cloud Nine
+  // embers drift up on Lava Peak, golden sparkles on Cloud Nine, bubbles in the Deep Sea
   if (th.ember && G && G.fx && phase === "play" && Math.random() < 0.25) {
-    const [x, y] = proj(Math.random() * N, Math.random() * N);
-    fx({ x, y, z: 2, vx: (Math.random() - 0.5) * 0.3, vy: 0, vz: 0.5 + Math.random() * 0.5, g: 0.004, life: 70 + Math.random() * 40, size: 1.5 + Math.random() * 1.5, color: th.ember, add: true });
+    const [x, y] = proj(Math.random() * N, Math.random() * N), sea = th.name === "sea";
+    fx({ x, y, z: 2, vx: (Math.random() - 0.5) * (sea ? 0.15 : 0.3), vy: 0, vz: 0.5 + Math.random() * 0.5, g: sea ? -0.006 : 0.004,
+         life: 70 + Math.random() * 40, size: (sea ? 2 : 1.5) + Math.random() * (sea ? 2.5 : 1.5), color: th.ember, add: true });
   }
   stepParticles();
   c.setTransform(ES, 0, 0, ES, 0, 0);
@@ -1825,7 +1941,7 @@ function enhancedPick(m){
   if (m.kind === "wisp" && Math.random() < 0.55) { const d = huntStep(m); if (d) return d; }
   return monsterPick(m);
 }
-const KIND_SPEED = { blob: 1, beetle: 0.85, wisp: 0.75 };
+const KIND_SPEED = { blob: 1, beetle: 0.85, wisp: 0.75, fish: 0.95 };
 
 // =====================================================================
 // NEW ENHANCED MODE: MUSIC
@@ -1836,6 +1952,8 @@ const KIND_SPEED = { blob: 1, beetle: 0.85, wisp: 0.75 };
 //   Frost Cave: ambient synthwave, E minor, wide pads and a bell arpeggio
 //   Lava Peak:  a slow, dark dirge in D phrygian: a moaning lead, a tolling bell, a heartbeat kick and rumbling
 //   Cloud Nine: a church organ hymn in C major with a choir singing the tune and holding the chords
+//   Deep Sea:   slow and floating, D minor: glassy arpeggios sweeping like waves, the surf rolling
+//               in and out, and bubbles rising
 // =====================================================================
 const ESONGS = [
   { bpm: 114, inst: "marimba", padCut: 1600, padVol: 0.03,
@@ -1866,6 +1984,12 @@ const ESONGS = [
     kick: [],
     bass: [0, 8], bassLen: 8,
     lead: [[0, 72], [4, 76], [8, 79], [12, 77], [14, 76], [16, 74], [24, 76], [32, 77], [36, 76], [38, 74], [40, 72], [44, 74], [48, 71], [56, 72]] },
+  { bpm: 72, inst: "bell", padCut: 1300, padVol: 0.04,
+    chords: [[50, 53, 57, 60, 64], [46, 50, 53, 57], [48, 52, 55, 60], [45, 49, 52, 57]], roots: [38, 34, 36, 33],
+    kick: [], waves: [0], bubbles: [6, 7, 27, 44, 45, 46, 58],
+    bass: [0, 10], bassLen: 6,
+    arp: [0, 1, 2, 3, 4, 3, 2, 1],
+    lead: [[0, 76], [12, 74], [16, 77], [28, 72], [32, 79], [40, 76], [48, 73], [56, 69]] },
 ];
 let eBus = null, eNext = 0, eStep = 0, eSong = -1, eNoise = null;
 function enhBus(a){
@@ -1991,6 +2115,20 @@ const EI = {
     }
   },
   rumble(a, t, dur){ noiseHit(a, t, "lowpass", 110, 0.8, 0.5, dur, { verbIn: 0.5 }); },
+  // the surf: filtered noise that swells in and draws back, its filter sweeping with it
+  wave(a, t, dur){
+    const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    s.buffer = eNoise; s.loop = true; f.type = "lowpass"; f.Q.value = 0.7;
+    f.frequency.setValueAtTime(300, t); f.frequency.linearRampToValueAtTime(1800, t + dur * 0.45); f.frequency.linearRampToValueAtTime(250, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.11, t + dur * 0.45); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    s.connect(f).connect(g); send(a, g, t, 0, { verbIn: 0.6 }); s.start(t); s.stop(t + dur + 0.05);
+  },
+  // a bubble: a short sine whose pitch shoots up
+  bubble(a, t){
+    const o = a.createOscillator(), g = envGain(a, t, 0.06, 0.003, 0.07), f0 = 300 + Math.random() * 400;
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 3.2, t + 0.06);
+    o.connect(g); send(a, g, t, 0, { verbIn: 0.5, dlyIn: 0.2 }); o.start(t); o.stop(t + 0.1);
+  },
   pluck(a, t, n, inst, v = 1){
     if (inst === "marimba") {
       for (const [ratio, amp, dec] of [[1, 0.2, 0.45], [4, 0.06, 0.08]]) {
@@ -2019,6 +2157,8 @@ function playEnhancedStep(a, song, step, t, sd){
   }
   if (song.toll && song.toll.includes(b)) EI.toll(a, t, song.roots[bar] + 24);
   if (song.rumble && song.rumble.includes(b)) EI.rumble(a, t, sd * 8);
+  if (song.waves && song.waves.includes(b)) EI.wave(a, t, sd * 16);
+  if (song.bubbles && song.bubbles.includes(s)) { EI.bubble(a, t); if (Math.random() < 0.5) EI.bubble(a, t + sd * 0.4); }
   if (song.kick.includes(b)) EI.kick(a, t, song.kick.length > 2 ? 1 : 0.8);
   if (song.clap && song.clap.includes(b)) EI.clap(a, t);
   if (song.snare && song.snare.includes(b)) EI.snare(a, t);

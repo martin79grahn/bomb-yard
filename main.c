@@ -2,12 +2,12 @@
  * Bomb Yard for the NES (NROM, cc65)
  *
  * A port of the browser game. 1 player: clear the two Krax monsters across
- * five levels, three minutes on the clock each. 2 players: blast each other
+ * six levels, three minutes on the clock each. 2 players: blast each other
  * (second player on controller 2); an options screen picks the level, Krax
  * on/off and the wins needed (3, 5 or 10).
  * Each level has its own music: jungle bongos in The Yard, an oriental tune in
  * the Sand Pit, slow, echoing ambience in the Frost Cave, a dark dirge on Lava
- * Peak and an organ hymn on Cloud Nine.
+ * Peak, an organ hymn on Cloud Nine and rolling waves with bubbles in the Deep Sea.
  *
  * Screen: tile rows 0-3 are the HUD, rows 4-29 hold a 16 x 13 grid of
  * 16 x 16 pixel cells (one NES attribute quadrant per cell).
@@ -62,7 +62,8 @@ static u8 vlen;
 #define IT_FIRE 2
 #define IT_BOMB 3
 
-#define LEVELS      5
+#define LEVELS      6
+#define SEA         5           /* the Deep Sea: fish instead of Krax, and a shark for a boss */
 #define FUSE        180
 #define FLAME_TIME  60
 #define MAX_BOMBS   24          /* bomb slots for everyone; a player has no limit of their own */
@@ -119,12 +120,12 @@ static u8 palive[NPL], pdeath[NPL], panim[NPL], pframe[NPL], ppending[NPL], pbur
 static u8 pl;                 /* the player being updated */
 /* a boss waits after every level (1 player) in player slot 1, in that level's colours,
    and each one is tougher: hits to beat, bombs, blast, speed, and when it turns angry */
-static const u8 BOSS_HP[LEVELS]    = { 3,  4,  4,  5,  6 };
-static const u8 BOSS_ANGRY[LEVELS] = { 2,  2,  2,  3,  3 };   /* hits taken before it gets angry */
-static const u8 BOSS_BOMBS[LEVELS] = { 2,  2,  3,  3,  3 };   /* one more when angry */
-static const u8 BOSS_FIRE_R[LEVELS] = { 5, 5,  6,  6,  7 };
-static const u8 BOSS_SPEED[LEVELS] = { 14, 15, 15, 16, 17 };  /* 5 faster when angry */
-static const u8 BOSS_REST[LEVELS]  = { 30, 26, 22, 18, 14 };  /* frames between its bombs */
+static const u8 BOSS_HP[LEVELS]    = { 3,  4,  4,  5,  6,  7 };
+static const u8 BOSS_ANGRY[LEVELS] = { 2,  2,  2,  3,  3,  4 };   /* hits taken before it gets angry */
+static const u8 BOSS_BOMBS[LEVELS] = { 2,  2,  3,  3,  3,  4 };   /* one more when angry */
+static const u8 BOSS_FIRE_R[LEVELS] = { 5, 5,  6,  6,  7,  7 };
+static const u8 BOSS_SPEED[LEVELS] = { 14, 15, 15, 16, 17, 18 };  /* 5 faster when angry */
+static const u8 BOSS_REST[LEVELS]  = { 30, 26, 22, 18, 14, 12 };  /* frames between its bombs */
 static u8 boss;               /* this is the boss stage */
 static u8 bhits, binv, bwait; /* hits taken, frames it can't be hurt, frames before it may bomb again */
 static u8 nplayers;           /* 1 = vs the Krax, 2 = versus */
@@ -186,6 +187,8 @@ static const u8 PALETTES[LEVELS][32] = {
     0x07,0x0F,0x30,0x16,  0x07,0x0F,0x16,0x36,  0x07,0x0F,0x30,0x27,  0x07,0x0F,0x30,0x27 },
   { 0x31,0x30,0x21,0x30,  0x31,0x30,0x27,0x02,  0x31,0x16,0x27,0x38,  0x31,0x0F,0x30,0x27,
     0x31,0x0F,0x30,0x16,  0x31,0x0F,0x16,0x36,  0x31,0x0F,0x30,0x27,  0x31,0x0F,0x30,0x27 },
+  { 0x0C,0x1C,0x0F,0x2C,  0x0C,0x36,0x26,0x01,  0x0C,0x16,0x27,0x38,  0x0C,0x0F,0x30,0x27,
+    0x0C,0x0F,0x30,0x16,  0x0C,0x0F,0x16,0x36,  0x0C,0x0F,0x30,0x27,  0x0C,0x0F,0x30,0x27 },
 };
 /* each boss's suit in sprite palette 1, after its level, then redder once it's angry */
 static const u8 BOSS_PAL[LEVELS][2][3] = {
@@ -194,13 +197,14 @@ static const u8 BOSS_PAL[LEVELS][2][3] = {
   { { 0x0F, 0x21, 0x30 }, { 0x0F, 0x15, 0x30 } },   /* Frost Cave: ice */
   { { 0x0F, 0x16, 0x27 }, { 0x0F, 0x05, 0x38 } },   /* Lava Peak: molten red */
   { { 0x0F, 0x28, 0x30 }, { 0x0F, 0x16, 0x38 } },   /* Cloud Nine: gold and white */
+  { { 0x0F, 0x10, 0x30 }, { 0x0F, 0x15, 0x30 } },   /* Deep Sea: the grey shark */
 };
 /* the four characters to play as: suit and trim colours (sprite colours 2 and 3) and names */
 static const u8 CHAR_PAL[4][2] = { { 0x30, 0x16 }, { 0x16, 0x36 }, { 0x12, 0x31 }, { 0x28, 0x17 } };
 static const char* const CHAR_NAME[4] = { "BIT ", "RUBY", "SKY ", "NOVA" };
 static u8 opt_char[2] = { 0, 1 };   /* player 1's and player 2's character */
-static const char* const LEVEL_NAME[LEVELS] = { "THE YARD", "SAND PIT", "FROST CAVE", "LAVA PEAK", "CLOUD NINE" };
-static const u8 MONSTER_SPEED[LEVELS] = { 8, 10, 13, 14, 15 };   /* 1/16 px per frame: 0.5 .. 0.94 */
+static const char* const LEVEL_NAME[LEVELS] = { "THE YARD", "SAND PIT", "FROST CAVE", "LAVA PEAK", "CLOUD NINE", "DEEP SEA" };
+static const u8 MONSTER_SPEED[LEVELS] = { 8, 10, 13, 14, 15, 16 };   /* 1/16 px per frame: 0.5 .. 1 */
 
 /* ---------- helpers ---------- */
 static u8 rand8(void) {
@@ -294,6 +298,7 @@ static void sfx_boom(void) { APU[12] = 0x08; APU[14] = 0x0D; APU[15] = 0x08; boo
 #define TEK 2                 /* slap */
 #define SHK 3                 /* shaker */
 #define WND 4                 /* wind */
+#define WAV 5                 /* a wave rolling in */
 
 static const u8 LEAD[LEVELS][64] = {
   /* The Yard: marimba-like calls in A minor pentatonic over the bongos */
@@ -311,6 +316,9 @@ static const u8 LEAD[LEVELS][64] = {
   /* Cloud Nine: a hymn in C major, held like an organ */
   { 72,0,0,0, 76,0,0,0, 79,0,0,0, 77,0,76,0,    74,0,0,0, 0,0,0,0, 76,0,0,0, 0,0,0,0,
     77,0,0,0, 76,0,74,0, 72,0,0,0, 74,0,0,0,    71,0,0,0, 0,0,0,0, 72,0,0,0, 0,0,0,0 },
+  /* Deep Sea: arpeggios that sweep up and down like waves, Dm Bb C A, each answered by an echo */
+  { 62,0,65,0, 69,0,72,0, 76,0,72,0, 69,0,65,0,   58,0,62,0, 65,0,69,0, 74,0,69,0, 65,0,62,0,
+    60,0,64,0, 67,0,72,0, 76,0,72,0, 67,0,64,0,   57,0,61,0, 64,0,69,0, 73,0,69,0, 64,0,61,0 },
 };
 static const u8 TRI[LEVELS][64] = {
   /* bongos: low log drum (45), high (67) and low (60) bongo, a fill at the end */
@@ -328,6 +336,9 @@ static const u8 TRI[LEVELS][64] = {
   /* organ pedal notes under the hymn */
   { 48+L,0,0,0, 0,0,0,0, 52+L,0,0,0, 53+L,0,0,0,  55+L,0,0,0, 0,0,0,0, 48+L,0,0,0, 0,0,0,0,
     53+L,0,0,0, 0,0,55+L,0, 57+L,0,0,0, 53+L,0,0,0,  55+L,0,0,0, 0,0,0,0, 48+L,0,0,0, 0,0,0,0 },
+  /* a slow bass, broken now and then by bubbles: short notes whose pitch rises */
+  { 38+L,0,0,0, 0,0,64,67, 0,38+L,0,0, 0,0,0,0,  34+L,0,0,0, 0,0,0,0, 0,0,0,65, 0,34+L,0,0,
+    36+L,0,0,0, 0,0,0,0, 0,0,0,0, 62,64,67,0,  33+L,0,0,0, 0,0,0,0, 0,0,66,0, 33+L,0,0,0 },
 };
 static const u8 DRUM[LEVELS][16] = {
   { DUM,SHK,SHK,SHK, TEK,SHK,DUM,SHK, DUM,SHK,SHK,DUM, TEK,SHK,SHK,SHK },   /* jungle groove */
@@ -335,21 +346,22 @@ static const u8 DRUM[LEVELS][16] = {
   { WND,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0 },                                 /* a breath of wind */
   { DUM,0,DUM,0, 0,0,0,0, WND,0,0,0, 0,0,0,0 },                             /* a heartbeat and a rumble */
   { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0 },                                   /* still air */
+  { WAV,0,0,0, 0,0,0,0, 0,0,SHK,0, 0,0,0,0 },                               /* surf and foam */
 };
-/* per song:                   Yard  Sand  Frost Lava  Cloud */
-static const u8 SONG_RATE[LEVELS]  = { 7,    8,    11,   10,   9 };      /* frames per step */
-static const u8 LEAD_DUTY[LEVELS]  = { 0x40, 0x00, 0x80, 0x40, 0x80 };   /* 25%, 12.5% (reedy), 50% */
-static const u8 LEAD_VOL[LEVELS]   = { 11,   9,    7,    9,    8 };
-static const u8 LEAD_DECAY[LEVELS] = { 1,    5,    6,    8,    14 };     /* frames per volume step */
-static const u8 LEAD_FLOOR[LEVELS] = { 0,    4,    0,    3,    6 };
-static const u8 TRI_SHORT[LEVELS]  = { 16,   24,   24,   24,   24 };     /* short-note length, 1/240 s */
-static const u8 TRI_BEND[LEVELS]   = { 7,    0,    0,    0,    0 };      /* bongo pitch drop per frame */
-static const u8 VIBRATO[LEVELS]    = { 0,    1,    0,    1,    1 };
-static const u8 ECHO[LEVELS]       = { 0,    0,    1,    0,    0 };
-/* drum kit:                 -    DUM   TEK   SHK   WND */
-static const u8 DRUM_PER[5] = { 0, 0x0C, 0x04, 0x00, 0x06 };
-static const u8 DRUM_VOL[5] = { 0, 12,   9,    3,    3 };
-static const u8 DRUM_DEC[5] = { 0, 1,    1,    1,    16 };
+/* per song:                   Yard  Sand  Frost Lava  Cloud Sea */
+static const u8 SONG_RATE[LEVELS]  = { 7,    8,    11,   10,   9,    9 };      /* frames per step */
+static const u8 LEAD_DUTY[LEVELS]  = { 0x40, 0x00, 0x80, 0x40, 0x80, 0x80 };   /* 25%, 12.5% (reedy), 50% */
+static const u8 LEAD_VOL[LEVELS]   = { 11,   9,    7,    9,    8,    8 };
+static const u8 LEAD_DECAY[LEVELS] = { 1,    5,    6,    8,    14,   4 };      /* frames per volume step */
+static const u8 LEAD_FLOOR[LEVELS] = { 0,    4,    0,    3,    6,    2 };
+static const u8 TRI_SHORT[LEVELS]  = { 16,   24,   24,   24,   24,   10 };     /* short-note length, 1/240 s */
+static const s8 TRI_BEND[LEVELS]   = { 7,    0,    0,    0,    0,    -7 };     /* short-note pitch: + drops (bongos), - rises (bubbles) */
+static const u8 VIBRATO[LEVELS]    = { 0,    1,    0,    1,    1,    1 };
+static const u8 ECHO[LEVELS]       = { 0,    0,    1,    0,    0,    1 };
+/* drum kit:                 -    DUM   TEK   SHK   WND   WAV */
+static const u8 DRUM_PER[6] = { 0, 0x0C, 0x04, 0x00, 0x06, 0x09 };
+static const u8 DRUM_VOL[6] = { 0, 12,   9,    3,    3,    7 };
+static const u8 DRUM_DEC[6] = { 0, 1,    1,    1,    16,   9 };
 
 static u8 mus_on, mus_step, mus_tick;
 static u8 lead_vol, lead_tick, lead_age;
@@ -606,7 +618,9 @@ static void hud_time(void) {
   vtext(14, 2, hud);
 }
 static void hud_krax(void) {
-  hud[0] = 'K'; hud[1] = 'R'; hud[2] = 'A'; hud[3] = 'X'; hud[4] = ' ';
+  if (level == SEA) { hud[0] = 'F'; hud[1] = 'I'; hud[2] = 'S'; hud[3] = 'H'; }
+  else { hud[0] = 'K'; hud[1] = 'R'; hud[2] = 'A'; hud[3] = 'X'; }
+  hud[4] = ' ';
   hud[5] = '0' + (malive[0] ? 1 : 0) + (malive[1] ? 1 : 0); hud[6] = 0;
   vtext(nplayers == 2 ? 13 : 25, nplayers == 2 ? 1 : 2, hud);
 }
@@ -964,16 +978,26 @@ static void update_monster(u8 m) {
 
 /* ---------- sprites ---------- */
 static u8 oi;
+static u8 shark_fl;           /* the shark faces right */
 static void spr(u8 x, u8 y, u8 tile, u8 a) {
   OAM[oi] = y - 1; OAM[oi + 1] = tile; OAM[oi + 2] = a; OAM[oi + 3] = x; oi += 4;
 }
 
 static void draw_sprites(void) {
-  u8 f, fl, x, y, a, m, p;
+  u8 f, fl, x, y, a, m, p, tx;
   oi = 0;
   for (p = 0; p < NPL; ++p) {
     if (!palive[p] && !(pdeath[p] & 4)) continue;
     if (p && boss && (binv & 4)) continue;
+    if (p && boss && level == SEA) {               /* the shark: 3 x 2 tiles, tail swinging as it swims */
+      if (pdir[1] < 2) shark_fl = pdir[1];
+      f = 0x80 + (pmoving[1] ? (pframe[1] & 1) * 3 : 0);
+      x = px[1] - 4; y = py[1] + ARENA_Y;
+      a = 1 | (shark_fl ? 0x40 : 0);
+      for (j = 0; j < 2; ++j)
+        for (tx = 0; tx < 3; ++tx) spr(x + tx * 8, y + j * 8, f + j * 16 + (shark_fl ? 2 - tx : tx), a);
+      continue;
+    }
     f = ANIM_F[pdir[p]][pmoving[p] ? pframe[p] : 0];
     fl = ANIM_FLIP[pdir[p]][pmoving[p] ? pframe[p] : 0];
     x = px[p]; y = py[p] + ARENA_Y - 8;
@@ -988,8 +1012,9 @@ static void draw_sprites(void) {
     x = mx[m]; y = my[m] + ARENA_Y - ((mmoving[m] && (mbob[m] & 8)) ? 1 : 0);
     fl = mdir[m] == 1;
     a = 0x02 | (fl ? 0x40 : 0);
-    spr(x, y, fl ? 0x4F : 0x4E, a); spr(x + 8, y, fl ? 0x4E : 0x4F, a);
-    spr(x, y + 8, fl ? 0x5F : 0x5E, a); spr(x + 8, y + 8, fl ? 0x5E : 0x5F, a);
+    f = level == SEA ? 0x6E : 0x4E;                /* fish in the Deep Sea, Krax elsewhere */
+    spr(x, y, f + (fl ? 1 : 0), a); spr(x + 8, y, f + (fl ? 0 : 1), a);
+    spr(x, y + 8, f + (fl ? 17 : 16), a); spr(x + 8, y + 8, f + (fl ? 16 : 17), a);
   }
   do { OAM[oi] = 0xFF; oi += 4; } while (oi);
 }
@@ -1096,7 +1121,7 @@ static void title_draw_choice(void) {
   vtext(10, 12, nplayers == 1 && !rush ? ">" : " ");
   vtext(10, 14, nplayers == 2 ? ">" : " ");
   vtext(10, 16, rush ? ">" : " ");
-  vtext(4, 19, rush ? "  BEAT ALL FIVE BOSSES  " : nplayers == 1 ? "  5 LEVELS AND 5 BOSSES " : "   BLAST YOUR FRIEND!   ");
+  vtext(4, 19, rush ? "  BEAT ALL SIX BOSSES   " : nplayers == 1 ? "  6 LEVELS AND 6 BOSSES " : "   BLAST YOUR FRIEND!   ");
 }
 static void title_screen(void) {
   ppu_off();
@@ -1202,7 +1227,7 @@ static void solo_game(void) {
       jingle_pos = 1; jingle_tick = 0;
       if (boss && level == LEVELS - 1) {
         confetti = 1;
-        message_screen("CONGRATULATIONS!", "YOU BEAT ALL 5 BOSSES", "YOU WIN!   PRESS START", 0);
+        message_screen("CONGRATULATIONS!", "YOU BEAT ALL 6 BOSSES", "YOU WIN!   PRESS START", 0);
         boss = 0;
         return;
       }
@@ -1218,18 +1243,18 @@ static void solo_game(void) {
     } else {
       if (lives) --lives;
       if (!lives) {
-        message_screen(time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : "THE KRAX GOT YOU", "GAME OVER", "PRESS START", 0);
+        message_screen(time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : level == SEA ? "A FISH GOT YOU" : "THE KRAX GOT YOU", "GAME OVER", "PRESS START", 0);
         boss = 0;
         return;
       }
-      message_screen(time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : "THE KRAX GOT YOU", "TRY AGAIN", boss ? "THE BOSS" : LEVEL_NAME[level], 120);
+      message_screen(time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : level == SEA ? "A FISH GOT YOU" : "THE KRAX GOT YOU", "TRY AGAIN", boss ? "THE BOSS" : LEVEL_NAME[level], 120);
       start_level(1);
     }
   }
 }
 
 /* ---------- 2 players ---------- */
-static const char* const LEVEL_PAD[LEVELS] = { "THE YARD  ", "SAND PIT  ", "FROST CAVE", "LAVA PEAK ", "CLOUD NINE" };
+static const char* const LEVEL_PAD[LEVELS] = { "THE YARD  ", "SAND PIT  ", "FROST CAVE", "LAVA PEAK ", "CLOUD NINE", "DEEP SEA  " };
 static u8 opt_row;
 
 /* the level's colours, so the options screen previews the chosen arena */
