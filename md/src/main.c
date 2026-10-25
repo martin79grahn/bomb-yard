@@ -25,6 +25,7 @@
 #define STONE  2
 #define TUFT   0x80           /* with a shoe item: the extra life */
 #define HAS_BOMB 0x10
+#define RUBBLE   0x20         /* a stone that was just blasted: while it burns it still stops other blasts */
 
 #define IT_SHOE 1
 #define IT_FIRE 2
@@ -428,10 +429,11 @@ static void blast_line(u8 start, u8 range, u8 d) {
             if (TYPE(ci + 1) == FLOOR) draw_ground(ci + 1);       /* its shadows go too */
             if (TYPE(ci + GW) == FLOOR) draw_ground(ci + GW);
             add_flame(ci);
-            cell[ci] |= t;
+            cell[ci] |= t | RUBBLE;
             if (bpen) continue;                 /* a penetrator blasts on through the stone */
             return;
         }
+        if ((cell[ci] & RUBBLE) && FLAME(ci) && !bpen) { add_flame(ci); return; }   /* burning rubble stops it too */
         add_flame(ci);
         if (BOMB(ci)) b_fuse[bomb_at(ci)] = 1;
     }
@@ -472,7 +474,7 @@ static void update_bombs(void) {
         }
     for (c = 0; c < CELLS; ++c)
         if (flame[c]) {
-            if (--flame[c] == 0) { draw_obj(c); redraw_around(c); }
+            if (--flame[c] == 0) { cell[c] &= ~RUBBLE; draw_obj(c); redraw_around(c); }
             else if (flick || flame[c] == FLAME_LOW - 1) draw_obj(c);
         }
 }

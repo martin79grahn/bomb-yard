@@ -74,8 +74,8 @@ static u8 vlen;
 #define STRESS_SECS 20
 
 /* RAM is tight (2 KB), so each cell packs several fields into one byte:
-   cell:  bits 0-1 type, bits 2-3 item (also hidden under stone), bit 4 bomb, bit 6 penetrator,
-          bit 7 tufted grass
+   cell:  bits 0-1 type, bits 2-3 item (also hidden under stone), bit 4 bomb, bit 5 rubble,
+          bit 6 penetrator, bit 7 tufted grass
    flame: bits 0-6 frames left to burn, bit 7 "needs redrawing" */
 static u8 cell[CELLS];
 static u8 flame[CELLS];
@@ -93,6 +93,8 @@ static u8 dq_head, dq_tail;
 #define IS_PEN(ci)      (ITEM(ci) == IT_BOMB && (cell[ci] & PEN))
 #define SET_ITEM(ci, v) (cell[ci] = (cell[ci] & ~(0x0C | PEN)) | ((v) << 2))
 #define HAS_BOMB        0x10
+/* a stone that was just blasted: while it burns it still stops other blasts */
+#define RUBBLE          0x20
 #define BOMB(ci)        (cell[ci] & HAS_BOMB)
 #define FLAME(ci)       (flame[ci] & 0x7F)
 /* cells burning only with the boss's own fire, which can't hurt it (1 bit per cell) */
@@ -671,10 +673,11 @@ static void blast_line(u8 start, u8 range, u8 d) {
       t = cell[ci] & (TUFT | PEN | 0x0C);   /* what hides under it shows when the fire is out */
       cell[ci] = FLOOR;
       add_flame(ci);
-      cell[ci] |= t;
+      cell[ci] |= t | RUBBLE;
       if (bpen) continue;              /* a penetrator blasts on through the stone */
       return;
     }
+    if ((cell[ci] & RUBBLE) && FLAME(ci) && !bpen) { add_flame(ci); return; }   /* burning rubble stops it too */
     add_flame(ci);
     /* chain reaction: the other bomb goes off on its next fuse tick (this frame or the next).
        No recursion, because static locals would be overwritten by a nested call. */
@@ -711,6 +714,7 @@ static void update_bombs(void) {
     if (b_used[k] && --b_fuse[k] == 0) explode(k);
   for (c = 0; c < CELLS; ++c)
     if ((flame[c] & 0x7F) && (--flame[c] & 0x7F) == 0) {
+      cell[c] &= ~RUBBLE;
       mark(c);
       mark_flame_around(c);
     }

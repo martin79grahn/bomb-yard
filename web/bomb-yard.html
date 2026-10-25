@@ -680,9 +680,12 @@ function explode(b){
         const type = G.hidden.get(cx + cy*N);
         if (type) G.pickups.push({ cx, cy, type, fresh: true });
         addFlame(cx, cy, b.owner);
+        flameAt(cx, cy).rubble = true;         // while it burns, the broken stone still stops blasts
         if (b.pen) continue;                   // a penetrator blasts on through the stone
         break;                                 // stone stops the blast
       }
+      const burning = flameAt(cx, cy);
+      if (burning && burning.rubble && !b.pen) { addFlame(cx, cy, b.owner); break; }
       addFlame(cx, cy, b.owner);
       const other = bombAt(cx, cy);
       if (other) explode(other);               // chain reaction
