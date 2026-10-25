@@ -3,8 +3,8 @@
 
 The page sources in manual/project/ show their pictures from /_blob/ uploads, which live only in
 the Claude artifact. This script draws every one of them again from the games themselves, into
-manual/images/<blob id>.png, then renders each page in headless Firefox and joins the pages
-into a PDF:
+manual/images/<blob id>.png, puts them into the pages as data: URIs (data-img keeps the id),
+then renders each page in headless Firefox and joins the pages into a PDF:
 
   - sprites and tiles straight from chr.bin, in NES colours
   - NES screenshots from bomb-yard.nes, played in the cynes emulator (RAM from labels.txt)
@@ -184,6 +184,24 @@ drawMonster(x, Object.assign(makeMonster(3, 3, 1), {{ kind: "{kind}", moving: tr
     save("fb9a76161f24d4ad48c388c6e49e3960", firefox(web_page(js, coarse=True), 450, 600, out))
 
 
+# ---------------------------------------------------------------- pictures into the pages
+def embed():
+    """Put each picture into the page sources as a data: URI, so the pages are whole on their own
+    (in the artifact and on GitHub). data-img keeps the picture's id for the next rebuild."""
+    def uri(blob):
+        return "data:image/png;base64," + base64.b64encode(open(os.path.join(IMAGES, blob + ".png"), "rb").read()).decode()
+    for name in os.listdir(PROJECT):
+        if not name.endswith(".dc.html"):
+            continue
+        path = os.path.join(PROJECT, name)
+        html = open(path).read()
+        new = re.sub(r'src="/_blob/([0-9a-f]+)"', lambda m: f'src="{uri(m.group(1))}" data-img="{m.group(1)}"', html)
+        new = re.sub(r'src="data:image/png;base64,[^"]*" data-img="([0-9a-f]+)"', lambda m: f'src="{uri(m.group(1))}" data-img="{m.group(1)}"', new)
+        if new != html:
+            open(path, "w").write(new)
+            print("pictures in", name)
+
+
 # ---------------------------------------------------------------- the PDF
 def build_pdf():
     order = json.load(open(os.path.join(PROJECT, "canvas.json")))["order"]
@@ -207,6 +225,7 @@ if __name__ == "__main__":
         nes_images()
         web_images()
         print("images in", IMAGES)
+        embed()
     if "--images-only" not in sys.argv:
         build_pdf()
     shutil.rmtree(TMP, ignore_errors=True)
