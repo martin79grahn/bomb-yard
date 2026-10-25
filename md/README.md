@@ -6,11 +6,11 @@ En Mega Drive-version av NES-spelet, med samma regler men ny grafik, ny musik oc
 
 Allt från NES-versionen finns med:
 
-- **1 spelare:** sex banor (The Yard, Sand Pit, Frost Cave, Lava Peak, Cloud Nine och Deep Sea) med två Kraxar på varje (clownfiskar i Deep Sea), och en bossbana efter varje bana. Du väljer 3, 5 eller 10 liv innan spelet, och vilken figur du spelar som: Bit, Ruby, Sky eller Nova, med var sina färger. Bossen har färgerna från banan före och blir svårare för varje bana: från 3 träffar, 2 bomber och räckvidd 5 till hajen i Deep Sea med 7 träffar, 4 bomber och räckvidd 7. Halvvägs blir den arg, rödare och snabbare, med en bomb till. Den skadas inte av sina egna bomber, bara av dina.
+- **1 spelare:** sex banor (The Yard, Sand Pit, Frost Cave, Lava Peak, Cloud Nine och Deep Sea) med två monster på varje som passar banan (Kraxar, kobror, yetis, eldsdjävlar, änglar och clownfiskar), och en bossbana efter varje bana. Du väljer 3, 5 eller 10 liv innan spelet, och vilken figur du spelar som: Bit, Ruby, Sky eller Nova, med var sina färger. Bossarna hör till banorna: Krax-kungen, en skorpion, en mammut, en drake, ett åskmoln och hajen, och sist den gröna bombaren hemma i The Yard. De blir svårare för varje bana: från 3 träffar, 2 bomber och räckvidd 5 till den gröna bombaren med 8 träffar, 4 bomber och räckvidd 8. Högra panelen visar `FOES` och hur många monster som är kvar. Halvvägs blir den arg, rödare och snabbare, med en bomb till. Den skadas inte av sina egna bomber, bara av dina.
 - **Penetratorbomb:** 2 per bana. Med den spränger dina bomber igenom stenblocken. Ikonen för bomber i vänsterpanelen byts mot en bomb med pil så länge du har den, och den försvinner när du dör.
 - **Remote:** 2 per bana. Med den smäller dina bomber inte av sig själva utan när du trycker B, och då smäller alla på en gång. A och C lägger bomber. Remotebomberna har en antenn med blinkande lampa och ett grönt band. Andra explosioner sätter igång dem som vanligt. En remote-ikon syns längst ner i panelen så länge du har den, och den försvinner när du dör. Bomberna du redan lagt börjar då ticka.
 - Explosionerna slocknar efter ungefär en halv sekund, och elden där ett stenblock just sprängts är ofarlig att gå in i.
-- **2 spelare:** välj bana, om Kraxar ska vara med och hur många vunna rundor som krävs (3, 5 eller 10) och vilken figur var och en har. Två spelare kan inte välja samma. Spelare 2 använder handkontroll 2.
+- **2 spelare:** välj bana, om monster ska vara med och hur många vunna rundor som krävs (3, 5 eller 10) och vilken figur var och en har. Två spelare kan inte välja samma. Spelare 2 använder handkontroll 2.
 - Under stenarna på varje bana göms bomb-power-ups, eld-power-ups, skor och, med 1 spelare, 1 hjärta som ger ett extra liv. Raden ITEMS på inställningsskärmen väljer hur många av varje sort (1–7, normalt 5); hjärtat är alltid ett. Bomber och eld har ingen övre gräns.
 - Styrhjälpen från NES-versionen: ett tryck strax före en korsning sparas, ett tryck upp till 5 pixlar för sent svänger ändå, och motsatt riktning vänder direkt.
 - Två minuter per bana. De sista 20 sekunderna går musiken fortare och en klocka tickar.
@@ -28,7 +28,7 @@ Allt från NES-versionen finns med:
 
 ## Grafik och ljud
 
-- Grafiken ritas av `tools/make_gfx.py` pixel för pixel, med ljus från övre vänstra hörnet och mörk kontur. Gubbarna har visir och ögon, bossen har horn och Kraxarna är små svarta fåglar med orange näbb. Blocken kastar skugga på golvet, eldstrålarna flimrar och tunnas ut innan de slocknar, och bomberna blinkar rött strax innan de smäller. Varje bana har egna färger, och bossbanan är mörklila.
+- Grafiken ritas av `tools/make_gfx.py` pixel för pixel, med ljus från övre vänstra hörnet och mörk kontur. Gubbarna har visir och ögon, den gröna bombaren har horn och Kraxarna är små svarta fåglar med orange näbb. De andra monstren och bossarna ritas av `../tools/creatures.py`, samma teckningar som på NES, men skuggade och bossarna i 32×24 pixlar. Blocken kastar skugga på golvet, eldstrålarna flimrar och tunnas ut innan de slocknar, och bomberna blinkar rött strax innan de smäller. Varje bana har egna färger.
 - Musiken skrivs av `tools/make_music.py` som VGM-filer för FM-synten: NES-melodierna arrangerade med bas, ackordarpeggio, eko i stereo och trummor, plus ny musik för titelskärmen och bossen, en dyster klagosång med körröster, klämtande klocka och hjärtslag för Lava Peak, en psalm med FM-orgel och kör för Cloud Nine, svepande klockarpeggion med havsbrus och bubblor för Deep Sea, och korta jinglar när du klarar en bana, vinner eller får game over.
 - Ljudeffekterna syntetiseras av `tools/make_sfx.py` och spelas som samplingar: explosion, bomb, power-up, hjärta, död, bossträff, klocktick och menyljud.
 
@@ -42,4 +42,4 @@ Du behöver Python 3 med Pillow och Podman (eller Docker). SGDK körs i en conta
 ./build.sh
 ```
 
-ROM-filen hamnar i `out/rom.bin`. Testbygget `EXTRA_FLAGS="-DTEST_CLEAR" ./build.sh` (kör `./build.sh clean` först) klarar varje bana med Kraxar efter två sekunder, så att du snabbt kommer till bossen.
+ROM-filen hamnar i `out/rom.bin`. Testbygget `EXTRA_FLAGS="-DTEST_CLEAR" ./build.sh` (kör `./build.sh clean` först) klarar varje monsterbana efter två sekunder, så att du snabbt kommer till bossen.

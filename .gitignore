@@ -2,3 +2,4 @@
 *.o
 main.s
 map.txt
+__pycache__/

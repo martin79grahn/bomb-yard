@@ -49,7 +49,7 @@ def svg(layers, w, h, scale, label):
 
 P0 = G["pal0"]("yard")
 P1 = G["PAL1"]
-SP = {k: G["sprite_pal"](k) for k in ("p1", "boss_yard", "boss_frost", "boss_lava", "angry_lava")}
+SP = {k: G["sprite_pal"](k) for k in ("p1", "boss_yard", "boss_kraxking", "boss_mammoth", "angry_dragon", "boss_storm")}
 
 # ---------- an arena corner with a blast going off ----------
 W, H = 7, 5
@@ -89,9 +89,10 @@ def char(pic, pal, label, scale=3):
     return svg([(pic, pal, 0, 0)], pic.w, pic.h, scale, label)
 
 
-BOSS_SVGS = "".join(char(G["bomber"](0, 0, boss=True), SP[k], label, 2) for k, label in (
-    ("boss_yard", "The Yard's boss"), ("boss_frost", "The Frost Cave's boss"), ("boss_lava", "Lava Peak's boss"),
-    ("angry_lava", "Lava Peak's boss, angry")))
+BOSS_SVGS = "".join(char(G["creature_pic"](name, 32, 24, 0, (2, 3, 4), (7, 8), 6), SP[k], label, 2) for name, k, label in (
+    ("kraxking", "boss_kraxking", "The Krax King"), ("mammoth", "boss_mammoth", "The mammoth"),
+    ("dragon", "angry_dragon", "The dragon, angry"), ("storm", "boss_storm", "The storm cloud"))) + \
+    char(G["bomber"](0, 0, boss=True), SP["boss_yard"], "The green bomber, the last boss", 2)
 
 HEAD = """<!doctype html>
 <html lang="en">
@@ -179,13 +180,13 @@ page11 = HEAD.format(title="Mega Drive controls and the bosses", heading="MD CON
     <p style="margin: 0; font-size: 13px; line-height: 1.4">On the options screen, pick your bomber: Bit, Ruby, Sky or Nova, each in their own colours. With 1 player or boss rush there is also DEBUG: walk through walls and never die.</p>
 
     <h3 style="{H3}">THE SCREEN</h3>
-    <p style="margin: 0; font-size: 13px; line-height: 1.4">Left panel: your bombs (an arrowed bomb once you hold the penetrator), blast range, skates, lives and, at the bottom, the remote while you hold it. Right panel: Krax left, the boss's hits to go, or player 2. Top: the level and the clock, which turns yellow in the last 20 seconds while the music speeds up.</p>
+    <p style="margin: 0; font-size: 13px; line-height: 1.4">Left panel: your bombs (an arrowed bomb once you hold the penetrator), blast range, skates, lives and, at the bottom, the remote while you hold it. Right panel: monsters left (FOES), the boss's hits to go, or player 2. Top: the level and the clock, which turns yellow in the last 20 seconds while the music speeds up.</p>
 
     <h3 style="{H3}">THE BOSSES</h3>
     <div style="display: flex; gap: 6px; align-items: flex-end">
       {BOSS_SVGS}
     </div>
-    <p style="margin: 0; font-size: 13px; line-height: 1.4">One waits after every level, dressed in its colours. Each is tougher than the last: 3 to 7 hits, more bombs, a longer blast and more speed. Halfway it turns angry, redder and faster. Its own bombs can't hurt it, only yours can.</p>
+    <p style="margin: 0; font-size: 13px; line-height: 1.4">A creature from each level: the Krax King, a scorpion, a mammoth, a dragon, a storm cloud, the shark, and last the green bomber, back in the Yard. Each is tougher: 3 to 8 hits, more bombs, a longer blast and more speed. Halfway it turns angry. Only your bombs hurt it.</p>
   </div>
 """ + FOOT.format(page=11)
 

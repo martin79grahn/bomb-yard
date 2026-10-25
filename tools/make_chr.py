@@ -19,6 +19,10 @@ Pattern table 1 ($1000) holds sprites:
   $6E,$6F,$7E,$7F  the Deep Sea's fish (Krax palette: 1 outline, 2 white stripes, 3 orange)
   $80-$85,$90-$95  the shark boss, 24 x 16 facing left, two tail frames side by side
                    (boss palette: 1 outline, 2 grey back, 3 white belly)
+  $40-$4B,$50-$5B, $60-$63,$70-$73  the asp, yeti, imp and angel monsters, 16 x 16, two frames
+                   side by side (monster palette), drawn by creatures.py
+  $A0-$AB,$B0-$BB, $C0-$CB,$D0-$DB, $E0-$E5,$F0-$F5  the Krax King, scorpion, mammoth, dragon and
+                   storm cloud bosses, laid out like the shark (creatures.py)
 
 Each PICO-8 colour is mapped to one of the NES's 4 palette slots per tile group,
 because every NES tile can only use 3 colours plus transparent/background.
@@ -318,6 +322,22 @@ for frame in range(2):
     for ty in range(2):
         for tx in range(3):
             spr[0x80 + ty * 16 + frame * 3 + tx] = encode([row[tx * 8:tx * 8 + 8] for row in shark[ty * 8:ty * 8 + 8]])
+
+# the themed monsters and bosses (tools/creatures.py)
+sys.path.insert(0, HERE)
+import creatures
+for name, base in zip(creatures.MONSTERS, (0x40, 0x44, 0x48, 0x60)):
+    for frame in range(2):
+        pic = creatures.nes(name, 16, 16, frame)
+        for ty in range(2):
+            for tx in range(2):
+                spr[base + frame * 2 + ty * 16 + tx] = encode([row[tx * 8:tx * 8 + 8] for row in pic[ty * 8:ty * 8 + 8]])
+for name, base in zip(creatures.BOSSES, (0xA0, 0xA6, 0xC0, 0xC6, 0xE0)):
+    for frame in range(2):
+        pic = creatures.nes(name, 24, 16, frame)
+        for ty in range(2):
+            for tx in range(3):
+                spr[base + frame * 3 + ty * 16 + tx] = encode([row[tx * 8:tx * 8 + 8] for row in pic[ty * 8:ty * 8 + 8]])
 
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "chr.bin")
 open(out, "wb").write(b"".join(bg) + b"".join(spr))

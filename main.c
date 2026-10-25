@@ -64,6 +64,8 @@ static u8 vlen;
 
 #define LEVELS      6
 #define SEA         5           /* the Deep Sea: fish instead of Krax, and a shark for a boss */
+#define NBOSS       7           /* one after each level, then the green bomber back in the Yard */
+#define FINAL       6
 #define FUSE        180
 #define FLAME_TIME  32
 #define MAX_BOMBS   24          /* bomb slots for everyone; a player has no limit of their own */
@@ -124,15 +126,23 @@ static s8 pdx[NPL], pdy[NPL];
 static u8 pbuf[NPL], pbuft[NPL];   /* a direction pressed a moment ago, and frames left to take it */
 static u8 palive[NPL], pdeath[NPL], panim[NPL], pframe[NPL], ppending[NPL], pburned[NPL];
 static u8 pl;                 /* the player being updated */
-/* a boss waits after every level (1 player) in player slot 1, in that level's colours,
-   and each one is tougher: hits to beat, bombs, blast, speed, and when it turns angry */
-static const u8 BOSS_HP[LEVELS]    = { 3,  4,  4,  5,  6,  7 };
-static const u8 BOSS_ANGRY[LEVELS] = { 2,  2,  2,  3,  3,  4 };   /* hits taken before it gets angry */
-static const u8 BOSS_BOMBS[LEVELS] = { 2,  2,  3,  3,  3,  4 };   /* one more when angry */
-static const u8 BOSS_FIRE_R[LEVELS] = { 5, 5,  6,  6,  7,  7 };
-static const u8 BOSS_SPEED[LEVELS] = { 14, 15, 15, 16, 17, 18 };  /* 5 faster when angry */
-static const u8 BOSS_REST[LEVELS]  = { 30, 26, 22, 18, 14, 12 };  /* frames between its bombs */
+/* a boss waits after every level (1 player) in player slot 1, a creature from that level,
+   and each one is tougher: hits to beat, bombs, blast, speed, and when it turns angry.
+   Bosses: the Krax King, a scorpion, a mammoth, a dragon, a storm cloud, the shark, and last
+   the green bomber, fought back in the Yard */
+static const u8 BOSS_HP[NBOSS]    = { 3,  4,  4,  5,  6,  7,  8 };
+static const u8 BOSS_ANGRY[NBOSS] = { 2,  2,  2,  3,  3,  4,  4 };   /* hits taken before it gets angry */
+static const u8 BOSS_BOMBS[NBOSS] = { 2,  2,  3,  3,  3,  4,  4 };   /* one more when angry */
+static const u8 BOSS_FIRE_R[NBOSS] = { 5, 5,  6,  6,  7,  7,  8 };
+static const u8 BOSS_SPEED[NBOSS] = { 14, 15, 15, 16, 17, 18, 19 };  /* 5 faster when angry */
+static const u8 BOSS_REST[NBOSS]  = { 30, 26, 22, 18, 14, 12, 10 };  /* frames between its bombs */
+/* the creature bosses are 3 x 2 sprite tiles, two frames side by side; 0 is the bomber */
+static const u8 BOSS_TILE[NBOSS]  = { 0xA0, 0xA6, 0xC0, 0xC6, 0xE0, 0x80, 0 };
+static const char* const BOSS_NAME[NBOSS] = { "THE KRAX KING", "THE SCORPION", "THE MAMMOTH", "THE DRAGON",
+                                              "THE STORM CLOUD", "THE SHARK", "THE GREEN BOMBER" };
 static u8 boss;               /* this is the boss stage */
+static u8 fin;                /* the final boss: the green bomber, after the shark */
+#define BI (fin ? FINAL : level)   /* which boss */
 static u8 bhits, binv, bwait; /* hits taken, frames it can't be hurt, frames before it may bomb again */
 static u8 nplayers;           /* 1 = vs the Krax, 2 = versus */
 static u8 wins[NPL];
@@ -156,7 +166,7 @@ static u8 mspeed;
 
 static u8 level;              /* 0..LEVELS-1 */
 static u8 debug;              /* debug mode: walk through walls and never die (1 player) */
-static u8 rush;               /* boss rush: only the five bosses, one after another (1 player) */
+static u8 rush;               /* boss rush: only the seven bosses, one after another (1 player) */
 static u8 secs, subsec, time_up;
 static u8 pad, pad_old, pad_new, pad2, pad2_old, pad2_new;
 static u8 rng = 0x5A, rng2 = 0xC3;
@@ -181,35 +191,45 @@ static const u8 ANIM_F[4][4] = { {8,10,12,10}, {8,10,12,10}, {4,6,4,6}, {0,2,0,2
 static const u8 ANIM_FLIP[4][4] = { {0,0,0,0}, {1,1,1,1}, {0,0,0,1}, {0,0,0,1} };
 
 /* ---------- palettes: background (4 x 4) then sprites (4 x 4), one set per level ----------
-   sprite palette 0 is player 1 (white), 1 is player 2 (red), 2 the Krax */
+   sprite palette 0 is player 1 (white), 1 is player 2 (red), 2 the level's monsters: Krax, asps,
+   yetis, imps, angels or fish */
 static const u8 PALETTES[LEVELS][32] = {
   { 0x2A,0x1A,0x0A,0x30,  0x2A,0x30,0x10,0x00,  0x2A,0x16,0x27,0x38,  0x2A,0x0F,0x30,0x27,
     0x2A,0x0F,0x30,0x16,  0x2A,0x0F,0x16,0x36,  0x2A,0x0F,0x30,0x27,  0x2A,0x0F,0x30,0x27 },
   { 0x38,0x27,0x17,0x30,  0x38,0x37,0x27,0x07,  0x38,0x16,0x27,0x30,  0x38,0x0F,0x30,0x16,
-    0x38,0x0F,0x30,0x16,  0x38,0x0F,0x16,0x36,  0x38,0x0F,0x30,0x27,  0x38,0x0F,0x30,0x27 },
+    0x38,0x0F,0x30,0x16,  0x38,0x0F,0x16,0x36,  0x38,0x0F,0x1A,0x38,  0x38,0x0F,0x30,0x27 },
   { 0x01,0x11,0x21,0x30,  0x01,0x31,0x21,0x02,  0x01,0x16,0x27,0x38,  0x01,0x0F,0x30,0x27,
-    0x01,0x0F,0x30,0x16,  0x01,0x0F,0x16,0x36,  0x01,0x0F,0x30,0x27,  0x01,0x0F,0x30,0x27 },
+    0x01,0x0F,0x30,0x16,  0x01,0x0F,0x16,0x36,  0x01,0x0F,0x30,0x21,  0x01,0x0F,0x30,0x27 },
   { 0x07,0x16,0x0F,0x27,  0x07,0x10,0x00,0x0F,  0x07,0x16,0x27,0x38,  0x07,0x0F,0x30,0x27,
-    0x07,0x0F,0x30,0x16,  0x07,0x0F,0x16,0x36,  0x07,0x0F,0x30,0x27,  0x07,0x0F,0x30,0x27 },
+    0x07,0x0F,0x30,0x16,  0x07,0x0F,0x16,0x36,  0x07,0x0F,0x27,0x38,  0x07,0x0F,0x30,0x27 },
   { 0x31,0x30,0x21,0x30,  0x31,0x30,0x27,0x02,  0x31,0x16,0x27,0x38,  0x31,0x0F,0x30,0x27,
-    0x31,0x0F,0x30,0x16,  0x31,0x0F,0x16,0x36,  0x31,0x0F,0x30,0x27,  0x31,0x0F,0x30,0x27 },
+    0x31,0x0F,0x30,0x16,  0x31,0x0F,0x16,0x36,  0x31,0x0F,0x30,0x28,  0x31,0x0F,0x30,0x27 },
   { 0x0C,0x1C,0x0F,0x2C,  0x0C,0x36,0x26,0x01,  0x0C,0x16,0x27,0x38,  0x0C,0x0F,0x30,0x27,
     0x0C,0x0F,0x30,0x16,  0x0C,0x0F,0x16,0x36,  0x0C,0x0F,0x30,0x27,  0x0C,0x0F,0x30,0x27 },
 };
-/* each boss's suit in sprite palette 1, after its level, then redder once it's angry */
-static const u8 BOSS_PAL[LEVELS][2][3] = {
-  { { 0x0F, 0x0A, 0x29 }, { 0x0F, 0x16, 0x29 } },   /* The Yard: jungle green */
-  { { 0x0F, 0x12, 0x28 }, { 0x0F, 0x16, 0x28 } },   /* Sand Pit: lapis and gold */
-  { { 0x0F, 0x21, 0x30 }, { 0x0F, 0x15, 0x30 } },   /* Frost Cave: ice */
-  { { 0x0F, 0x16, 0x27 }, { 0x0F, 0x05, 0x38 } },   /* Lava Peak: molten red */
-  { { 0x0F, 0x28, 0x30 }, { 0x0F, 0x16, 0x38 } },   /* Cloud Nine: gold and white */
-  { { 0x0F, 0x10, 0x30 }, { 0x0F, 0x15, 0x30 } },   /* Deep Sea: the grey shark */
+/* each boss's colours in sprite palette 1, then redder once it's angry */
+static const u8 BOSS_PAL[NBOSS][2][3] = {
+  { { 0x0F, 0x00, 0x28 }, { 0x0F, 0x06, 0x28 } },   /* the Krax King: black feathers, a gold crown */
+  { { 0x0F, 0x12, 0x28 }, { 0x0F, 0x16, 0x28 } },   /* the scorpion: lapis and gold */
+  { { 0x0F, 0x17, 0x30 }, { 0x0F, 0x06, 0x30 } },   /* the mammoth: brown fur, white tusks */
+  { { 0x0F, 0x16, 0x27 }, { 0x0F, 0x05, 0x38 } },   /* the dragon: red and orange */
+  { { 0x0F, 0x10, 0x28 }, { 0x0F, 0x00, 0x16 } },   /* the storm cloud: grey with yellow lightning */
+  { { 0x0F, 0x10, 0x30 }, { 0x0F, 0x15, 0x30 } },   /* the grey shark */
+  { { 0x0F, 0x0A, 0x29 }, { 0x0F, 0x16, 0x29 } },   /* the green bomber */
 };
 /* the four characters to play as: suit and trim colours (sprite colours 2 and 3) and names */
 static const u8 CHAR_PAL[4][2] = { { 0x30, 0x16 }, { 0x16, 0x36 }, { 0x12, 0x31 }, { 0x28, 0x17 } };
 static const char* const CHAR_NAME[4] = { "BIT ", "RUBY", "SKY ", "NOVA" };
 static u8 opt_char[2] = { 0, 1 };   /* player 1's and player 2's character */
 static const char* const LEVEL_NAME[LEVELS] = { "THE YARD", "SAND PIT", "FROST CAVE", "LAVA PEAK", "CLOUD NINE", "DEEP SEA" };
+/* each level's monster: sprite tiles (2 x 2; the new ones have a second frame 2 tiles on), and names */
+static const u8 MON_TILE[LEVELS] = { 0x4E, 0x40, 0x44, 0x48, 0x60, 0x6E };
+#define MON_FRAMES(lv) ((lv) >= 1 && (lv) <= 4)
+static const char* const MON_HUD[LEVELS] = { "KRAX ", "ASP  ", "YETI ", "IMP  ", "ANGEL", "FISH " };
+static const char* const MON_GOT[LEVELS] = { "THE KRAX GOT YOU", "AN ASP GOT YOU", "A YETI GOT YOU",
+                                             "AN IMP GOT YOU", "AN ANGEL GOT YOU", "A FISH GOT YOU" };
+static const char* const MON_WATCH[LEVELS] = { "WATCH OUT FOR THE KRAX", "WATCH OUT FOR THE ASPS", "WATCH OUT FOR THE YETIS",
+                                               "WATCH OUT FOR THE IMPS", "WATCH OUT FOR THE ANGELS", "WATCH OUT FOR THE FISH" };
 static const u8 MONSTER_SPEED[LEVELS] = { 8, 10, 13, 14, 15, 16 };   /* 1/16 px per frame: 0.5 .. 1 */
 
 /* ---------- helpers ---------- */
@@ -628,10 +648,10 @@ static void hud_time(void) {
   vtext(14, 2, hud);
 }
 static void hud_krax(void) {
-  if (level == SEA) { hud[0] = 'F'; hud[1] = 'I'; hud[2] = 'S'; hud[3] = 'H'; }
-  else { hud[0] = 'K'; hud[1] = 'R'; hud[2] = 'A'; hud[3] = 'X'; }
-  hud[4] = ' ';
-  hud[5] = '0' + (malive[0] ? 1 : 0) + (malive[1] ? 1 : 0); hud[6] = 0;
+  const char* n = MON_HUD[level];
+  for (k = 0; k < 5; ++k) hud[k] = n[k];
+  hud[5] = ' ';
+  hud[6] = '0' + (malive[0] ? 1 : 0) + (malive[1] ? 1 : 0); hud[7] = 0;
   vtext(nplayers == 2 ? 13 : 25, nplayers == 2 ? 1 : 2, hud);
 }
 /* "B1 F1 S0 R": bombs (P with the penetrator), blast range (fire), speed-ups and the remote of player p */
@@ -646,7 +666,7 @@ static void hud_stats(u8 p) {
 /* boss stage: "BOSS 3", hits it can still take */
 static void hud_boss(void) {
   hud[0] = 'B'; hud[1] = 'O'; hud[2] = 'S'; hud[3] = 'S'; hud[4] = ' ';
-  hud[5] = '0' + BOSS_HP[level] - bhits; hud[6] = 0;
+  hud[5] = '0' + BOSS_HP[BI] - bhits; hud[6] = 0;
   vtext(25, 2, hud);
 }
 /* 1 player: "LIVES 3" */
@@ -913,7 +933,7 @@ static u8 boss_think(void) {
             TYPE(ci + DSTEP[want]) == STONE || rand8() < 6)) {
     vb_cell = ci; vb_on = 1;
     d = escape_dir();
-    if (d != 0xFF) { place_bomb(); bwait = BOSS_REST[level]; return d; }
+    if (d != 0xFF) { place_bomb(); bwait = BOSS_REST[BI]; return d; }
     vb_on = 0;
   }
   if (boss_safe(ci + DSTEP[want]) && rand8() < 200) return want;
@@ -943,7 +963,7 @@ static void update_boss(void) {
 
 /* the boss's suit colours (rendering off, or queued when on) */
 static void boss_palette(u8 queued) {
-  const u8* p = BOSS_PAL[level][bhits >= BOSS_ANGRY[level]];
+  const u8* p = BOSS_PAL[BI][bhits >= BOSS_ANGRY[BI]];
   if (queued) {
     vram_buf[vlen++] = 3; vram_buf[vlen++] = 0x3F; vram_buf[vlen++] = 0x15;
     for (i = 0; i < 3; ++i) vram_buf[vlen++] = p[i];
@@ -956,10 +976,10 @@ static void boss_palette(u8 queued) {
 
 static void hit_boss(void) {
   ++bhits; binv = 90; sfx_die();
-  if (bhits == BOSS_ANGRY[level]) {             /* angry: redder, quicker, one more bomb */
-    pspeed[1] = BOSS_SPEED[level] + 5; pbombs[1] = BOSS_BOMBS[level] + 1; boss_palette(1);
+  if (bhits == BOSS_ANGRY[BI]) {                /* angry: redder, quicker, one more bomb */
+    pspeed[1] = BOSS_SPEED[BI] + 5; pbombs[1] = BOSS_BOMBS[BI] + 1; boss_palette(1);
   }
-  if (bhits >= BOSS_HP[level]) { palive[1] = 0; pdeath[1] = 60; }
+  if (bhits >= BOSS_HP[BI]) { palive[1] = 0; pdeath[1] = 60; }
   hud_boss();
 }
 
@@ -1001,7 +1021,7 @@ static void update_monster(u8 m) {
 
 /* ---------- sprites ---------- */
 static u8 oi;
-static u8 shark_fl;           /* the shark faces right */
+static u8 shark_fl;           /* a creature boss faces right */
 static void spr(u8 x, u8 y, u8 tile, u8 a) {
   OAM[oi] = y - 1; OAM[oi + 1] = tile; OAM[oi + 2] = a; OAM[oi + 3] = x; oi += 4;
 }
@@ -1012,9 +1032,9 @@ static void draw_sprites(void) {
   for (p = 0; p < NPL; ++p) {
     if (!palive[p] && !(pdeath[p] & 4)) continue;
     if (p && boss && (binv & 4)) continue;
-    if (p && boss && level == SEA) {               /* the shark: 3 x 2 tiles, tail swinging as it swims */
+    if (p && boss && BOSS_TILE[BI]) {              /* a creature boss: 3 x 2 tiles, two frames as it moves */
       if (pdir[1] < 2) shark_fl = pdir[1];
-      f = 0x80 + (pmoving[1] ? (pframe[1] & 1) * 3 : 0);
+      f = BOSS_TILE[BI] + (pmoving[1] ? (pframe[1] & 1) * 3 : 0);
       x = px[1] - 4; y = py[1] + ARENA_Y;
       a = 1 | (shark_fl ? 0x40 : 0);
       for (j = 0; j < 2; ++j)
@@ -1035,7 +1055,7 @@ static void draw_sprites(void) {
     x = mx[m]; y = my[m] + ARENA_Y - ((mmoving[m] && (mbob[m] & 8)) ? 1 : 0);
     fl = mdir[m] == 1;
     a = 0x02 | (fl ? 0x40 : 0);
-    f = level == SEA ? 0x6E : 0x4E;                /* fish in the Deep Sea, Krax elsewhere */
+    f = MON_TILE[level] + (MON_FRAMES(level) && (mbob[m] & 16) ? 2 : 0);   /* the level's own monster */
     spr(x, y, f + (fl ? 1 : 0), a); spr(x + 8, y, f + (fl ? 0 : 1), a);
     spr(x, y + 8, f + (fl ? 17 : 16), a); spr(x + 8, y + 8, f + (fl ? 16 : 17), a);
   }
@@ -1116,7 +1136,7 @@ static void start_level(u8 keep) {
   load_palette();
   if (boss) {
     reset_player(1, GW - 2, GH - 2, 0);
-    pfire[1] = BOSS_FIRE_R[level]; pbombs[1] = BOSS_BOMBS[level]; pspeed[1] = BOSS_SPEED[level];
+    pfire[1] = BOSS_FIRE_R[BI]; pbombs[1] = BOSS_BOMBS[BI]; pspeed[1] = BOSS_SPEED[BI];
     bhits = 0; binv = 0; bwait = 90;
     boss_palette(0);
   }
@@ -1144,7 +1164,7 @@ static void title_draw_choice(void) {
   vtext(10, 12, nplayers == 1 && !rush ? ">" : " ");
   vtext(10, 14, nplayers == 2 ? ">" : " ");
   vtext(10, 16, rush ? ">" : " ");
-  vtext(4, 19, rush ? "  BEAT ALL SIX BOSSES   " : nplayers == 1 ? "  6 LEVELS AND 6 BOSSES " : "   BLAST YOUR FRIEND!   ");
+  vtext(4, 19, rush ? " BEAT ALL SEVEN BOSSES  " : nplayers == 1 ? "  6 LEVELS AND 7 BOSSES " : "   BLAST YOUR FRIEND!   ");
 }
 static void title_screen(void) {
   ppu_off();
@@ -1241,36 +1261,39 @@ static u8 play_level(void) {
 
 /* each level, then its boss; after the last boss the game is won. Boss rush skips the levels */
 static void solo_game(void) {
-  level = 0; boss = rush;                         /* boss rush starts straight at the first boss */
+  level = 0; boss = rush; fin = 0;                /* boss rush starts straight at the first boss */
   lives = WIN_CHOICES[opt_lives];
   message_screen(rush ? "BOSS RUSH" : "LEVEL 1", LEVEL_NAME[0], 0, 100);
   start_level(0);
   for (;;) {
     if (play_level() == R_CLEARED) {
       jingle_pos = 1; jingle_tick = 0;
-      if (boss && level == LEVELS - 1) {
+      if (boss && fin) {
         confetti = 1;
-        message_screen("CONGRATULATIONS!", "YOU BEAT ALL 6 BOSSES", "YOU WIN!   PRESS START", 0);
-        boss = 0;
+        message_screen("CONGRATULATIONS!", "YOU BEAT ALL 7 BOSSES", "YOU WIN!   PRESS START", 0);
+        boss = 0; fin = 0; level = 0;
         return;
       }
       if (!boss) {
         boss = 1;
-        message_screen("LEVEL CLEARED", "NEXT UP", "THE BOSS", 150);
+        message_screen("LEVEL CLEARED", "NEXT UP", BOSS_NAME[level], 150);
+      } else if (level == LEVELS - 1) {          /* after the shark: the green bomber, back in the Yard */
+        fin = 1; level = 0;
+        message_screen("BOSS DEFEATED", "THE FINAL BOSS", BOSS_NAME[FINAL], 150);
       } else {
         boss = rush;
-        message_screen("BOSS DEFEATED", rush ? "NEXT BOSS" : "NEXT UP", LEVEL_NAME[level + 1], 150);
+        message_screen("BOSS DEFEATED", rush ? "NEXT BOSS" : "NEXT UP", rush ? BOSS_NAME[level + 1] : LEVEL_NAME[level + 1], 150);
         ++level;
       }
       start_level(1);
     } else {
       if (lives) --lives;
       if (!lives) {
-        message_screen(time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : level == SEA ? "A FISH GOT YOU" : "THE KRAX GOT YOU", "GAME OVER", "PRESS START", 0);
-        boss = 0;
+        message_screen(time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : MON_GOT[level], "GAME OVER", "PRESS START", 0);
+        boss = 0; fin = 0; level = 0;
         return;
       }
-      message_screen(time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : level == SEA ? "A FISH GOT YOU" : "THE KRAX GOT YOU", "TRY AGAIN", boss ? "THE BOSS" : LEVEL_NAME[level], 120);
+      message_screen(time_up ? "TIME UP" : pburned[0] ? "CAUGHT IN THE BLAST" : MON_GOT[level], "TRY AGAIN", boss ? BOSS_NAME[BI] : LEVEL_NAME[level], 120);
       start_level(1);
     }
   }
@@ -1394,7 +1417,7 @@ static void versus_game(void) {
   *s++ = 'F'; *s++ = 'I'; *s++ = 'R'; *s++ = 'S'; *s++ = 'T'; *s++ = ' '; *s++ = 'T'; *s++ = 'O'; *s++ = ' ';
   s = put_num(s, win_target);
   *s++ = ' '; *s++ = 'W'; *s++ = 'I'; *s++ = 'N'; *s++ = 'S'; *s = 0;
-  message_screen(LEVEL_NAME[level], score, opt_monsters ? "WATCH OUT FOR THE KRAX" : "P2 USES CONTROLLER 2", 120);
+  message_screen(LEVEL_NAME[level], score, opt_monsters ? MON_WATCH[level] : "P2 USES CONTROLLER 2", 120);
   for (;;) {
     start_level(0);
     r = play_level();

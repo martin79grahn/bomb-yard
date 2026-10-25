@@ -77,6 +77,18 @@ SUITS = {   # suit shade/mid/light, visor, glint, trim dark/light, boots dark/li
     "angry_lava":  ["#a05a00", "#ffb020", "#fff08a", "#1a0804", "#ff3b30", "#3a3a40", "#7a7a84", "#1a1010", "#3a2a2a"],
     "boss_cloud":  ["#a07a10", "#e8c040", "#fff4b0", "#2a2050", "#5ad8ff", "#7a90c0", "#ffffff", "#806020", "#c0a050"],
     "angry_cloud": ["#901838", "#e04a6a", "#ffa0b8", "#2a2050", "#ffe04a", "#7a90c0", "#ffffff", "#806020", "#c0a050"],
+    # the creature bosses (creatures.py): main colour dark/mid/light, -, accent, second colour
+    # dark/light, -, -
+    "boss_kraxking":  ["#1e1e2a", "#3e3e58", "#6e6e92", "#000000", "#ffffff", "#a87a10", "#ffd84a", "#000000", "#000000"],
+    "angry_kraxking": ["#5a0c10", "#a01c24", "#e04a4a", "#000000", "#ffffff", "#a87a10", "#ffd84a", "#000000", "#000000"],
+    "boss_scorpion":  ["#1a3a8a", "#2a64d0", "#7ab0ff", "#000000", "#ffffff", "#a87a10", "#ffd84a", "#000000", "#000000"],
+    "angry_scorpion": ["#8a2a10", "#d0582a", "#ffa070", "#000000", "#ffffff", "#a87a10", "#ffd84a", "#000000", "#000000"],
+    "boss_mammoth":   ["#4a2410", "#8a4a20", "#c88048", "#000000", "#ffffff", "#c8c0a8", "#fff8e8", "#000000", "#000000"],
+    "angry_mammoth":  ["#6a1408", "#b02a14", "#e8603a", "#000000", "#ffffff", "#c8c0a8", "#fff8e8", "#000000", "#000000"],
+    "boss_dragon":    ["#6a0c04", "#d02a0a", "#ff6a3a", "#000000", "#ffffff", "#d08a10", "#ffd040", "#000000", "#000000"],
+    "angry_dragon":   ["#a05a00", "#ffb020", "#fff08a", "#000000", "#ffffff", "#a01010", "#ff3b30", "#000000", "#000000"],
+    "boss_storm":     ["#4a5060", "#8a92a8", "#d0d8e8", "#000000", "#ffffff", "#d0a010", "#fff04a", "#000000", "#000000"],
+    "angry_storm":    ["#2a2a38", "#50506a", "#8a8aa8", "#000000", "#ffffff", "#a01010", "#ff4a3a", "#000000", "#000000"],
     # the Deep Sea's shark: dark back, grey flank, white belly, eye, teeth, gums
     "boss_sea":    ["#3a4c5e", "#6c8296", "#eef2f6", "#0a0e14", "#ffffff", "#8a1a2a", "#c04050", "#202830", "#405060"],
     "angry_sea":   ["#6a2030", "#b04a5e", "#ffe8ec", "#0a0e14", "#ffffff", "#8a1a2a", "#c04050", "#202830", "#405060"],
@@ -87,12 +99,26 @@ def sprite_pal(suit):
     return ["#000000", "#100c14"] + SUITS[suit] + KRAX
 
 
+# each level's monster in sprite palette 2, colours 11-15: main colour dark/mid/light, second
+# colour, accent (the Krax and the fish use the KRAX colours)
+MONSTER_COLS = [
+    KRAX,
+    ["#1a5a1a", "#2ea02e", "#7ae06a", "#f0e0a0", "#100c14"],   # asp: green, a pale hood
+    ["#8aa0c0", "#c8d8f0", "#ffffff", "#5a9ae0", "#182040"],   # yeti: white fur, a blue face
+    ["#a03a08", "#e86a1a", "#ffa040", "#ffd040", "#fff6a0"],   # imp: orange, yellow wings and eyes
+    ["#a0a8c8", "#dde4f4", "#ffffff", "#ffc830", "#2a2050"],   # angel: white, gold halo
+    KRAX,
+]
+BOSS_ORDER = ("kraxking", "scorpion", "mammoth", "dragon", "storm", "sea", "yard")   # the last is the green bomber
+
+
 PALETTES = {
     "arena": [[md(hexrgb(c)) for c in pal0(t)] for t in ("yard", "sand", "frost", "boss", "lava", "cloud", "sea")],
     "items": [md(hexrgb(c)) for c in PAL1],
     # the four characters (Bit, Ruby, Sky, Nova), then the boss and the angry boss
     "sprites": [[md(hexrgb(c)) for c in sprite_pal(s)] for s in ("p1", "p2", "sky", "nova") +
-                tuple(f"{m}_{t}" for t in ("yard", "sand", "frost", "lava", "cloud", "sea") for m in ("boss", "angry"))],
+                tuple(f"{m}_{t}" for t in BOSS_ORDER for m in ("boss", "angry"))],
+    "monsters": [[md(hexrgb(c)) for c in cols] for cols in MONSTER_COLS],
 }
 
 # ---------------------------------------------------------------- canvas helpers
@@ -750,6 +776,38 @@ for f in range(3):
 consts["S_SHARK"] = len(tiles)         # 2 frames, 4x3 sprites (12 tiles each)
 for f in range(2):
     add_sprite(shark(f))
+# the themed monsters and bosses from tools/creatures.py, shaded: role 2 (main) becomes dark, mid
+# or light by which of its edges face the light from the top left
+import creatures
+
+
+def creature_pic(name, w, h, frame, main, second, accent):
+    g = creatures.draw(name, w, h, frame)
+    p = Pic(w, h)
+    for y in range(h):
+        for x in range(w):
+            v = g[y][x]
+            if v == 1:
+                p.set(x, y, 1)
+            elif v in (2, 3):
+                lit = (y == 0 or g[y - 1][x] != v) or (x == 0 or g[y][x - 1] != v)
+                dark = (y == h - 1 or g[y + 1][x] != v) or (x == w - 1 or g[y][x + 1] != v)
+                cols = main if v == 2 else second
+                p.set(x, y, cols[-1] if lit and not dark else cols[0] if dark and not lit else cols[len(cols) // 2])
+            elif v == 4:
+                p.set(x, y, accent)
+    return p
+
+
+for name in creatures.MONSTERS:                # 2 frames, 2x2 sprites, PAL2 colours 11-15
+    consts["S_" + name.upper()] = len(tiles)
+    for f in range(2):
+        add_sprite(creature_pic(name, 16, 16, f, (11, 12, 13), (14,), 15))
+for name in creatures.BOSSES:                  # 2 frames, 4x3 sprites like the shark, PAL3 suit colours
+    consts["S_" + name.upper()] = len(tiles)
+    for f in range(2):
+        add_sprite(creature_pic(name, 32, 24, f, (2, 3, 4), (7, 8), 6))
+
 # confetti specks (PAL1 colours, 1x1 sprites)
 consts["S_CONFETTI"] = len(tiles)
 for c in (8, 9, 10, 13, 14, 15):
@@ -821,7 +879,7 @@ with open(os.path.join(OUT, "gfx.h"), "w") as f:
     for k, v in consts.items():
         f.write(f"#define {k} {v}\n")
     f.write("\nextern const u32 GFX_TILES[];\n")
-    f.write("extern const u16 PAL_ARENA[7][16];\nextern const u16 PAL_ITEMS[16];\nextern const u16 PAL_SPRITES[16][16];\n")
+    f.write("extern const u16 PAL_ARENA[7][16];\nextern const u16 PAL_ITEMS[16];\nextern const u16 PAL_SPRITES[18][16];\nextern const u16 PAL_MONSTER[6][5];\n")
     for k, v in arrays.items():
         f.write(f"extern const u16 {k}[{len(v)}];\n")
 with open(os.path.join(OUT, "gfx.c"), "w") as f:
@@ -835,7 +893,8 @@ with open(os.path.join(OUT, "gfx.c"), "w") as f:
         return f"const u16 {name} = {{" + ",".join(f"0x{v:04X}" for v in vals) + "};\n"
     f.write("const u16 PAL_ARENA[7][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["arena"]) + "\n};\n")
     f.write(arr("PAL_ITEMS[16]", PALETTES["items"]))
-    f.write("const u16 PAL_SPRITES[16][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["sprites"]) + "\n};\n")
+    f.write("const u16 PAL_MONSTER[6][5] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["monsters"]) + "\n};\n")
+    f.write("const u16 PAL_SPRITES[18][16] = {\n" + ",\n".join("  {" + ",".join(f"0x{v:04X}" for v in p) + "}" for p in PALETTES["sprites"]) + "\n};\n")
     for k, v in arrays.items():
         f.write(f"const u16 {k}[{len(v)}] = {{" + ",".join(str(x) for x in v) + "};\n")
 print(f"gfx: {len(tiles)} tiles")
