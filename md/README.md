@@ -2,6 +2,8 @@
 
 En Mega Drive-version av NES-spelet, med samma regler men ny grafik, ny musik och nya ljudeffekter. ROM-filen är `bomb-yard.bin` och går att köra i en Mega Drive-emulator, till exempel ares eller Genesis Plus GX.
 
+Den går också att spela i webbläsaren, på dator eller mobil, som sidan Bomb Yard MD i Claude. Där kör ROM-filen i Genesis Plus GX med knappar på skärmen. Knappen **2P** lägger till en andra handkontroll ovanför skärmen, vänd mot den som sitter mittemot. På tangentbordet styr spelare 1 med pilarna, Z/X/C och Enter, och spelare 2 med I/J/K/L, B/N/M och mellanslag. Handkontroller via USB eller Bluetooth fungerar också. Sidan byggs med `web/page.py` i doomlike-md-repot.
+
 ## Spelet
 
 Allt från NES-versionen finns med:
