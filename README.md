@@ -44,6 +44,12 @@ Styrningen hjälper dig in i gångarna, både på NES och i webben. Trycker du e
 
 Explosionerna ritas som sammanhängande strålar som bara är rundade i ändarna.
 
+## Spela Mega Drive-versionen på GitHub
+
+`index.html` i roten kör `md/bomb-yard.bin` i webbläsaren med EmulatorJS (Genesis Plus GX), så sidan visar alltid den ROM som ligger committad. Den fungerar på mobil med skärmkontroll och med spelkontroller. Tangenter: piltangenterna går, S, X och Z är A, B och C, Enter är Start.
+
+Sidan publiceras med GitHub Pages: **Settings → Pages → Build and deployment → Deploy from a branch → `main` / `(root)`**. Då hamnar spelet på `https://martin79grahn.github.io/bomb-yard-nes/`. `.nojekyll` gör att filerna serveras som de är.
+
 ## Webbversionen
 
 `web/bomb-yard.html` är originalspelet för webbläsaren, som hela spelet i en enda fil. Öppna den i en webbläsare på dator eller mobil. Den har tvåspelarläge på samma telefon med knappar för båda, en större bana på 16×16 rutor och knappar på skärmen för mobilen. Musiken är samma låtar som i NES-versionen.
